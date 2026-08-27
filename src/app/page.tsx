@@ -1,8 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { Users, Wrench, CheckCircle, AlertTriangle, Activity, Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Activity, ArrowRight, Box, CheckCircle2, ClipboardList, Users, Wrench } from 'lucide-react';
+
+type RecentLog = {
+  id: string;
+  action: string;
+  createdAt: string;
+  technician: { name: string };
+  tool: { name: string };
+};
 
 type Stats = {
   totalTechnicians: number;
@@ -10,171 +18,126 @@ type Stats = {
   availableTools: number;
   assignedTools: number;
   todayLogs: number;
-  recentLogs: {
-    id: string;
-    action: string;
-    createdAt: string;
-    technician: { name: string };
-    tool: { name: string };
-  }[];
-  toolsByTechnician: {
-    name: string;
-    idNumber: string;
-    toolCount: number;
-    tools: string[];
-  }[];
+  recentLogs: RecentLog[];
+  toolsByTechnician: { idNumber: string; name: string; toolCount: number; tools: string[] }[];
 };
 
+const initialStats: Stats = {
+  totalTechnicians: 0,
+  totalTools: 0,
+  availableTools: 0,
+  assignedTools: 0,
+  todayLogs: 0,
+  recentLogs: [],
+  toolsByTechnician: [],
+};
+
+const formatDate = (date: string) =>
+  new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date));
+
 export default function OverviewPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<Stats>(initialStats);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch('/api/stats')
-      .then((res) => res.json())
-      .then((data) => setStats(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const loadStats = async () => {
+      try {
+        const response = await fetch('/api/stats');
+        if (!response.ok) throw new Error('Unable to load stats');
+        setStats(await response.json());
+      } catch {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStats();
   }, []);
 
-  if (loading) {
-    return <p>Loading dashboard...</p>;
-  }
-
-  if (!stats) {
-    return <p>Failed to load dashboard data.</p>;
-  }
+  const widgets = [
+    { label: 'Technicians', value: stats.totalTechnicians, icon: Users, color: '#dbeafe', iconColor: '#1e40af' },
+    { label: 'Total Tools', value: stats.totalTools, icon: Wrench, color: '#ede9fe', iconColor: '#6d28d9' },
+    { label: 'Available Tools', value: stats.availableTools, icon: CheckCircle2, color: '#d1fae5', iconColor: '#047857' },
+    { label: 'Assigned Tools', value: stats.assignedTools, icon: ClipboardList, color: '#fef3c7', iconColor: '#b45309' },
+    { label: 'Activity Today', value: stats.todayLogs, icon: Activity, color: '#fee2e2', iconColor: '#b91c1c' },
+  ];
 
   return (
     <div>
-      <h1 className="page-title">Dashboard Overview</h1>
+      <h1 className="page-title">Overview</h1>
 
-      {/* Summary Cards */}
+      {error && <p className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger)' }}>Unable to load dashboard data.</p>}
+
       <div className="widget-grid">
-        <div className="widget-card">
-          <div className="widget-icon" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>
-            <Users size={22} />
+        {widgets.map(({ label, value, icon: Icon, color, iconColor }) => (
+          <div className="widget-card" key={label}>
+            <div className="widget-icon" style={{ backgroundColor: color, color: iconColor }}>
+              <Icon size={22} />
+            </div>
+            <div>
+              <div className="widget-value">{loading ? '-' : value}</div>
+              <div className="widget-label">{label}</div>
+            </div>
           </div>
-          <div>
-            <p className="widget-value">{stats.totalTechnicians}</p>
-            <p className="widget-label">Technicians</p>
-          </div>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon" style={{ backgroundColor: '#e0e7ff', color: '#3730a3' }}>
-            <Wrench size={22} />
-          </div>
-          <div>
-            <p className="widget-value">{stats.totalTools}</p>
-            <p className="widget-label">Total Tools</p>
-          </div>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon" style={{ backgroundColor: '#d1fae5', color: '#065f46' }}>
-            <CheckCircle size={22} />
-          </div>
-          <div>
-            <p className="widget-value">{stats.availableTools}</p>
-            <p className="widget-label">Available</p>
-          </div>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <p className="widget-value">{stats.assignedTools}</p>
-            <p className="widget-label">Assigned</p>
-          </div>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon" style={{ backgroundColor: '#ede9fe', color: '#5b21b6' }}>
-            <Activity size={22} />
-          </div>
-          <div>
-            <p className="widget-value">{stats.todayLogs}</p>
-            <p className="widget-label">Today&apos;s Actions</p>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Two-column layout */}
       <div className="overview-columns">
-        {/* Recent Activity */}
-        <div className="card">
-          <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Clock size={18} /> Recent Activity
-          </h3>
-          {stats.recentLogs.length === 0 ? (
-            <p className="text-muted">No activity yet.</p>
-          ) : (
-            <div className="activity-list">
+        <section className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3>Recent Activity</h3>
+            <Link href="/logs" className="btn btn-outline">
+              View all <ArrowRight size={16} />
+            </Link>
+          </div>
+          {loading ? <p className="text-muted">Loading...</p> : stats.recentLogs.length === 0 ? <p className="text-muted">No activity recorded yet.</p> : (
+            <div style={{ display: 'grid', gap: '1rem' }}>
               {stats.recentLogs.map((log) => (
-                <div key={log.id} className="activity-item">
-                  <div className={`activity-dot ${log.action === 'TAKEN' ? 'dot-warning' : 'dot-success'}`} />
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: '0.875rem' }}>
-                      <strong>{log.technician.name}</strong>{' '}
-                      {log.action === 'TAKEN' ? 'took' : 'returned'}{' '}
-                      <strong>{log.tool.name}</strong>
-                    </p>
-                    <p className="text-muted" style={{ fontSize: '0.75rem' }}>
-                      {format(new Date(log.createdAt), 'MMM dd, HH:mm')}
-                    </p>
+                <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                  <div>
+                    <strong>{log.technician.name}</strong>
+                    <div className="text-muted" style={{ fontSize: '0.875rem' }}>{log.action === 'TAKEN' ? 'Took' : 'Returned'} {log.tool.name}</div>
                   </div>
+                  <time className="text-muted" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }} dateTime={log.createdAt}>{formatDate(log.createdAt)}</time>
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Tools per Technician */}
-        <div className="card">
-          <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={18} /> Tools per Technician
-          </h3>
-          {stats.toolsByTechnician.length === 0 ? (
-            <p className="text-muted">No technicians registered yet.</p>
-          ) : (
+        <section className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3>Tools By Technician</h3>
+            <Link href="/technicians" className="btn btn-outline">
+              Manage <ArrowRight size={16} />
+            </Link>
+          </div>
+          {loading ? <p className="text-muted">Loading...</p> : stats.toolsByTechnician.length === 0 ? <p className="text-muted">No technicians found.</p> : (
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>Technician</th>
-                  <th>Tools Held</th>
-                </tr>
+                <tr><th>Technician</th><th>Assigned</th></tr>
               </thead>
               <tbody>
-                {stats.toolsByTechnician.map((tech) => (
-                  <tr key={tech.idNumber}>
-                    <td>
-                      <span style={{ fontWeight: 500 }}>{tech.name}</span>
-                      <br />
-                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>{tech.idNumber}</span>
-                    </td>
-                    <td>
-                      {tech.toolCount === 0 ? (
-                        <span className="text-muted">None</span>
-                      ) : (
-                        <div>
-                          <span className="badge badge-warning" style={{ marginBottom: '0.25rem' }}>
-                            {tech.toolCount}
-                          </span>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                            {tech.tools.join(', ')}
-                          </div>
-                        </div>
-                      )}
-                    </td>
+                {stats.toolsByTechnician.map((technician) => (
+                  <tr key={technician.idNumber}>
+                    <td><strong>{technician.name}</strong><div className="text-muted" style={{ fontSize: '0.75rem' }}>{technician.idNumber}</div></td>
+                    <td><span className="badge badge-info">{technician.toolCount}</span></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+        </section>
+      </div>
+
+      <div className="card" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Box size={22} color="var(--primary)" />
+          <div><h3>Need to check a tool?</h3><p className="text-muted">Scan a QR code to assign or return equipment.</p></div>
         </div>
+        <Link href="/scanner" className="btn btn-primary">Open scanner</Link>
       </div>
     </div>
   );

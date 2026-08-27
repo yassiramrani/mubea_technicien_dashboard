@@ -11,6 +11,7 @@ export default function ScannerPage() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [selectedTech, setSelectedTech] = useState<string>('');
   const [scanResult, setScanResult] = useState<{ text: string; type: 'success' | 'error'; tool?: any } | null>(null);
+  const [error, setError] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -26,8 +27,11 @@ export default function ScannerPage() {
     try {
       const res = await fetch('/api/technicians');
       const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) throw new Error('Unable to load technicians');
       setTechnicians(data);
+      setError(false);
     } catch (error) {
+      setError(true);
       console.error(error);
     }
   };
@@ -77,6 +81,7 @@ export default function ScannerPage() {
         <h3 style={{ marginBottom: '1rem' }}>Active Technician</h3>
         <div className="form-group" style={{ maxWidth: '400px' }}>
           <label className="form-label">Select Technician to assign/return tools</label>
+          {error && <p style={{ color: 'var(--danger)', fontSize: '0.875rem' }}>Unable to load technicians. Check the database connection.</p>}
           <select 
             className="form-input"
             value={selectedTech} 
@@ -105,12 +110,19 @@ export default function ScannerPage() {
               {scanResult.text}
             </p>
             {scanResult.tool && (
-              <div style={{ fontSize: '0.875rem', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                  <span><strong>Tool:</strong> {scanResult.tool.name}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span><strong>New Status:</strong> {scanResult.tool.status}</span>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontSize: '0.875rem', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
+                {scanResult.tool.image ? (
+                  <img src={scanResult.tool.image} alt={scanResult.tool.name} style={{ width: '160px', height: '160px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: '60px', height: '60px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center', fontSize: '10px' }}>No Img</div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                    <span><strong>Tool:</strong> {scanResult.tool.name}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span><strong>New Status:</strong> {scanResult.tool.status}</span>
+                  </div>
                 </div>
               </div>
             )}

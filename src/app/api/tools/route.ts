@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name } = body;
+    const { name, image } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -37,11 +37,41 @@ export async function POST(request: Request) {
       data: {
         name,
         qrCode,
+        image,
       },
     });
 
     return NextResponse.json(tool, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create tool' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 });
+    }
+
+    const tool = await prisma.tool.findUnique({ where: { id } });
+
+    if (!tool) {
+      return NextResponse.json({ error: 'Tool not found' }, { status: 404 });
+    }
+
+    if (tool.status === 'ASSIGNED') {
+      return NextResponse.json({ error: 'Cannot delete an assigned tool. Return it first.' }, { status: 400 });
+    }
+
+    // Delete related logs first, then the tool
+    await prisma.log.deleteMany({ where: { toolId: id } });
+    await prisma.tool.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to delete tool' }, { status: 500 });
   }
 }

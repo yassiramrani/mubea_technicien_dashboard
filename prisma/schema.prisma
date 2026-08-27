@@ -20,6 +20,7 @@ model Tool {
   id           String      @id @default(cuid())
   qrCode       String      @unique
   name         String
+  image        String?     // Optional image field (URL or base64)
   status       String      @default("AVAILABLE") // "AVAILABLE", "ASSIGNED"
   technicianId String?
   technician   Technician? @relation(fields: [technicianId], references: [id])

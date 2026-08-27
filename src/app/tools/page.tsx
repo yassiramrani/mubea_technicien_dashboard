@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Trash2 } from 'lucide-react';
+import { exportToExcel } from '@/lib/exportToExcel';
 
 type Tool = {
   id: string;
   name: string;
+  image?: string | null;
   qrCode: string;
   status: string;
   technician: any | null;
@@ -14,8 +17,11 @@ type Tool = {
 export default function ToolsPage() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [name, setName] = useState('');
+  const [image, setImage] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [printingTool, setPrintingTool] = useState<Tool | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchTools();
@@ -25,11 +31,53 @@ export default function ToolsPage() {
     try {
       const res = await fetch('/api/tools');
       const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) throw new Error('Unable to load tools');
       setTools(data);
+      setError(false);
     } catch (error) {
+      setError(true);
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          setImage(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setImage('');
     }
   };
 
@@ -41,14 +89,38 @@ export default function ToolsPage() {
       const res = await fetch('/api/tools', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, image: image || null }),
       });
       if (res.ok) {
         setName('');
+        setImage('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         fetchTools();
       }
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleDeleteTool = async (tool: Tool) => {
+    if (tool.status === 'ASSIGNED') {
+      alert('Cannot delete an assigned tool. Return it first.');
+      return;
+    }
+
+    if (!confirm(`Delete "${tool.name}"? This will also remove all related logs.`)) return;
+
+    try {
+      const res = await fetch(`/api/tools?id=${tool.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete tool');
+        return;
+      }
+      fetchTools();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to delete tool');
     }
   };
 
@@ -58,6 +130,18 @@ export default function ToolsPage() {
       window.print();
       setPrintingTool(null);
     }, 100);
+  };
+
+  const handleExportExcel = () => {
+    const data = tools.map(t => ({
+      ID: t.id,
+      Name: t.name,
+      ImageURL: t.image || 'N/A',
+      QRCode: t.qrCode,
+      Status: t.status,
+      AssignedTo: t.technician ? t.technician.name : 'None',
+    }));
+    exportToExcel(data, 'Mubea_Tools');
   };
 
   return (
@@ -91,7 +175,12 @@ export default function ToolsPage() {
         </div>
       )}
 
-      <h1 className="page-title">Tools Management</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>Tools Management</h1>
+        <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
+          Export Excel
+        </button>
+      </div>
       
       <div className="card" style={{ marginBottom: '2rem' }}>
         <h3 style={{ marginBottom: '1rem' }}>Add New Tool</h3>
@@ -107,6 +196,16 @@ export default function ToolsPage() {
               required
             />
           </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+            <label className="form-label">Tool Image (Optional)</label>
+            <input 
+              type="file" 
+              accept="image/*"
+              className="form-input" 
+              onChange={handleImageChange}
+              ref={fileInputRef}
+            />
+          </div>
           <button type="submit" className="btn btn-primary" style={{ height: '38px' }}>
             Add & Generate QR
           </button>
@@ -115,12 +214,14 @@ export default function ToolsPage() {
 
       <div className="card">
         <h3 style={{ marginBottom: '1rem' }}>Tools Inventory</h3>
+        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>Unable to load tools. Check the database connection.</p>}
         {loading ? (
           <p>Loading...</p>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
+                <th>Image</th>
                 <th>Name</th>
                 <th>Status</th>
                 <th>Assigned To</th>
@@ -130,6 +231,13 @@ export default function ToolsPage() {
             <tbody>
               {tools.map((tool) => (
                 <tr key={tool.id}>
+                  <td>
+                    {tool.image ? (
+                      <img src={tool.image} alt={tool.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+                    ) : (
+                      <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>No Img</div>
+                    )}
+                  </td>
                   <td>{tool.name}</td>
                   <td>
                     <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
@@ -138,15 +246,32 @@ export default function ToolsPage() {
                   </td>
                   <td>{tool.technician ? tool.technician.name : '-'}</td>
                   <td>
-                    <button onClick={() => handlePrintQR(tool)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                      Print QR
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button onClick={() => handlePrintQR(tool)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
+                        Print QR
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTool(tool)}
+                        className="btn btn-outline"
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.75rem',
+                          color: 'var(--danger)',
+                          borderColor: 'var(--danger)',
+                          opacity: tool.status === 'ASSIGNED' ? 0.4 : 1,
+                          cursor: tool.status === 'ASSIGNED' ? 'not-allowed' : 'pointer',
+                        }}
+                        title={tool.status === 'ASSIGNED' ? 'Return the tool before deleting' : 'Delete tool'}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {tools.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center' }}>No tools found.</td>
+                  <td colSpan={5} style={{ textAlign: 'center' }}>No tools found.</td>
                 </tr>
               )}
             </tbody>

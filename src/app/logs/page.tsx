@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
+import { exportToExcel } from '@/lib/exportToExcel';
 
 type Log = {
   id: string;
@@ -17,6 +18,7 @@ export default function LogsPage() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchLogs();
@@ -27,8 +29,11 @@ export default function LogsPage() {
     try {
       const res = await fetch(`/api/logs?date=${date}`);
       const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) throw new Error('Unable to load logs');
       setLogs(data);
+      setError(false);
     } catch (error) {
+      setError(true);
       console.error(error);
     } finally {
       setLoading(false);
@@ -65,13 +70,31 @@ export default function LogsPage() {
     doc.save(`mubea_tools_report_${date}.pdf`);
   };
 
+  const handleExportExcel = () => {
+    const data = logs.map(log => ({
+      Time: format(new Date(log.createdAt), 'HH:mm:ss'),
+      Date: format(new Date(log.createdAt), 'yyyy-MM-dd'),
+      TechnicianName: log.technician.name,
+      TechnicianID: log.technician.idNumber,
+      ToolName: log.tool.name,
+      Action: log.action
+    }));
+    exportToExcel(data, `Mubea_Logs_${date}`);
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Logs & Reports</h1>
-        <button onClick={exportPDF} className="btn btn-primary" disabled={logs.length === 0}>
-          Export PDF
-        </button>
+        
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button onClick={exportPDF} className="btn btn-primary" disabled={logs.length === 0 || undefined}>
+            Export PDF
+          </button>
+          <button onClick={handleExportExcel} className="btn btn-primary" disabled={logs.length === 0 || undefined}>
+            Export Excel
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: '2rem' }}>
@@ -88,6 +111,7 @@ export default function LogsPage() {
 
       <div className="card">
         <h3 style={{ marginBottom: '1rem' }}>Daily Activity</h3>
+        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>Unable to load logs. Check the database connection.</p>}
         {loading ? (
           <p>Loading...</p>
         ) : (

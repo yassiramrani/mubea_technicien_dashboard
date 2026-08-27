@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { exportToExcel } from '@/lib/exportToExcel';
 
 type Technician = {
   id: string;
@@ -14,6 +15,7 @@ export default function TechniciansPage() {
   const [name, setName] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchTechnicians();
@@ -23,8 +25,11 @@ export default function TechniciansPage() {
     try {
       const res = await fetch('/api/technicians');
       const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) throw new Error('Unable to load technicians');
       setTechnicians(data);
+      setError(false);
     } catch (error) {
+      setError(true);
       console.error(error);
     } finally {
       setLoading(false);
@@ -51,10 +56,27 @@ export default function TechniciansPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    const data = technicians.map(tech => ({
+      ID: tech.id,
+      Name: tech.name,
+      IDNumber: tech.idNumber,
+      AssignedToolsCount: tech.tools.length,
+      AssignedToolsNames: tech.tools.map((t: any) => t.name).join(', '),
+    }));
+    exportToExcel(data, 'Mubea_Technicians');
+  };
+
   return (
     <div>
-      <h1 className="page-title">Technicians Management</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>Technicians Management</h1>
+        <button onClick={handleExportExcel} className="btn btn-primary" disabled={technicians.length === 0}>
+          Export Excel
+        </button>
+      </div>
       
+        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>Unable to load technicians. Check the database connection.</p>}
       <div className="card" style={{ marginBottom: '2rem' }}>
         <h3 style={{ marginBottom: '1rem' }}>Add New Technician</h3>
         <form onSubmit={handleAddTechnician} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
