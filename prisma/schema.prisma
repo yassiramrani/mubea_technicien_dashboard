@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Technician {
+  id        String   @id @default(cuid())
+  name      String
+  idNumber  String   @unique
+  createdAt DateTime @default(now())
+  tools     Tool[]
+  logs      Log[]
+}
+
+model Tool {
+  id           String      @id @default(cuid())
+  qrCode       String      @unique
+  name         String
+  status       String      @default("AVAILABLE") // "AVAILABLE", "ASSIGNED"
+  technicianId String?
+  technician   Technician? @relation(fields: [technicianId], references: [id])
+  logs         Log[]
+  createdAt    DateTime    @default(now())
+}
+
+model Log {
+  id           String     @id @default(cuid())
+  technicianId String
+  technician   Technician @relation(fields: [technicianId], references: [id])
+  toolId       String
+  tool         Tool       @relation(fields: [toolId], references: [id])
+  action       String     // "TAKEN", "RETURNED"
+  createdAt    DateTime   @default(now())
+}
