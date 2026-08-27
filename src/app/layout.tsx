@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Link from 'next/link'
-import { Wrench, Users, QrCode, FileText } from 'lucide-react'
+import { Wrench, Users, QrCode, FileText, LayoutDashboard } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Mubea Technician Dashboard',
@@ -24,6 +24,9 @@ export default function RootLayout({
             </div>
             <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <Link href="/" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+                <LayoutDashboard size={18} /> Overview
+              </Link>
+              <Link href="/technicians" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
                 <Users size={18} /> Technicians
               </Link>
               <Link href="/tools" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
