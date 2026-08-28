@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from '@/lib/LanguageContext';
 
 type Technician = {
   id: string;
@@ -8,6 +9,7 @@ type Technician = {
 };
 
 export default function ScannerPage() {
+  const { t } = useTranslation();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [selectedTech, setSelectedTech] = useState<string>('');
   const [scanResult, setScanResult] = useState<{ text: string; type: 'success' | 'error'; tool?: any } | null>(null);
@@ -40,7 +42,7 @@ export default function ScannerPage() {
     e.preventDefault();
     
     if (!selectedTech) {
-      setScanResult({ text: 'Please select a technician first!', type: 'error' });
+      setScanResult({ text: t('pleaseSelectTechnician'), type: 'error' });
       if (inputRef.current) inputRef.current.value = '';
       return;
     }
@@ -63,7 +65,7 @@ export default function ScannerPage() {
         setScanResult({ text: `${data.error} (Scanned: "${scannedCode}")`, type: 'error' });
       }
     } catch (error) {
-      setScanResult({ text: 'Failed to process scan', type: 'error' });
+      setScanResult({ text: t('failedProcessScan'), type: 'error' });
     } finally {
       // Clear the input for the next scan
       if (inputRef.current) {
@@ -75,19 +77,19 @@ export default function ScannerPage() {
 
   return (
     <div>
-      <h1 className="page-title">Tool Scanner</h1>
+      <h1 className="page-title">{t('toolScanner')}</h1>
 
       <div className="card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>Active Technician</h3>
+        <h3 style={{ marginBottom: '1rem' }}>{t('activeTechnician')}</h3>
         <div className="form-group" style={{ maxWidth: '400px' }}>
-          <label className="form-label">Select Technician to assign/return tools</label>
-          {error && <p style={{ color: 'var(--danger)', fontSize: '0.875rem' }}>Unable to load technicians. Check the database connection.</p>}
+          <label className="form-label">{t('selectTechnician')}</label>
+          {error && <p style={{ color: 'var(--danger)', fontSize: '0.875rem' }}>{t('unableLoadTechnicians')}</p>}
           <select 
             className="form-input"
             value={selectedTech} 
             onChange={(e) => setSelectedTech(e.target.value)}
           >
-            <option value="">-- Select Technician --</option>
+            <option value="">{t('selectTechnicianOption')}</option>
             {technicians.map(tech => (
               <option key={tech.id} value={tech.id}>{tech.name}</option>
             ))}
@@ -96,7 +98,7 @@ export default function ScannerPage() {
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>Scan QR Code (Hardware Scanner)</h3>
+        <h3 style={{ marginBottom: '1rem' }}>{t('scanQrHardware')}</h3>
         
         {scanResult && (
           <div style={{
@@ -114,14 +116,14 @@ export default function ScannerPage() {
                 {scanResult.tool.image ? (
                   <img src={scanResult.tool.image} alt={scanResult.tool.name} style={{ width: '160px', height: '160px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
                 ) : (
-                  <div style={{ width: '60px', height: '60px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center', fontSize: '10px' }}>No Img</div>
+                  <div style={{ width: '60px', height: '60px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center', fontSize: '10px' }}>{t('noImage')}</div>
                 )}
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                    <span><strong>Tool:</strong> {scanResult.tool.name}</span>
+                    <span><strong>{t('tool')}:</strong> {scanResult.tool.name}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span><strong>New Status:</strong> {scanResult.tool.status}</span>
+                    <span><strong>{t('newStatus')}:</strong> {scanResult.tool.status}</span>
                   </div>
                 </div>
               </div>
@@ -131,21 +133,21 @@ export default function ScannerPage() {
 
         <form onSubmit={handleScanSubmit} style={{ maxWidth: '400px' }}>
           <div className="form-group">
-            <label className="form-label">Scanner Input</label>
+            <label className="form-label">{t('scannerInput')}</label>
             <input 
               ref={inputRef}
               type="text" 
               className="form-input" 
-              placeholder="Scan barcode here..."
+              placeholder={t('scanBarcode')}
               autoFocus
             />
           </div>
           <button type="submit" className="btn btn-primary" style={{ display: 'none' }}>
-            Process Scan
+            {t('processScan')}
           </button>
         </form>
         <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: '1rem' }}>
-          Ensure your cursor is in the input box above, then scan the tool's QR code.
+          {t('scanInstructions')}
         </p>
       </div>
     </div>

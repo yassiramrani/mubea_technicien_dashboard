@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Trash2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
+import { useTranslation } from '@/lib/LanguageContext';
 
 type Tool = {
   id: string;
@@ -15,6 +16,7 @@ type Tool = {
 };
 
 export default function ToolsPage() {
+  const { t } = useTranslation();
   const [tools, setTools] = useState<Tool[]>([]);
   const [name, setName] = useState('');
   const [image, setImage] = useState('');
@@ -167,11 +169,11 @@ export default function ToolsPage() {
 
   const handleDeleteTool = async (tool: Tool) => {
     if (tool.status === 'ASSIGNED') {
-      alert('Cannot delete an assigned tool. Return it first.');
+      alert(t('cannotDeleteAssigned'));
       return;
     }
 
-    if (!confirm(`Delete "${tool.name}"? This will also remove all related logs.`)) return;
+    if (!confirm(t('deleteConfirmation'))) return;
 
     try {
       const res = await fetch(`/api/tools?id=${tool.id}`, { method: 'DELETE' });
@@ -241,15 +243,15 @@ export default function ToolsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Tools Management</h1>
         <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
-          Export Excel
+          {t('exportExcel')}
         </button>
       </div>
       
       <div className="card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>Add New Tool</h3>
+        <h3 style={{ marginBottom: '1rem' }}>{t('addNewTool')}</h3>
         <form onSubmit={handleAddTool} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
           <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-            <label className="form-label">Tool Name</label>
+            <label className="form-label">{t('toolName')}</label>
             <input 
               type="text" 
               className="form-input" 
@@ -260,7 +262,7 @@ export default function ToolsPage() {
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-            <label className="form-label">Tool Image (Optional)</label>
+            <label className="form-label">{t('toolImageOptional')}</label>
             <input 
               type="file" 
               accept="image/*"
@@ -270,25 +272,25 @@ export default function ToolsPage() {
             />
           </div>
           <button type="submit" className="btn btn-primary" style={{ height: '38px' }}>
-            Add & Generate QR
+            {t('addGenerateQr')}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>Tools Inventory</h3>
-        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>Unable to load tools. Check the database connection.</p>}
+        <h3 style={{ marginBottom: '1rem' }}>{t('toolsInventory')}</h3>
+        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{t('unableLoadTools')}</p>}
         {loading ? (
-          <p>Loading...</p>
+          <p>{t('loading')}</p>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Image</th>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Assigned To</th>
-                <th>Action</th>
+                <th>{t('image')}</th>
+                <th>{t('name')}</th>
+                <th>{t('status')}</th>
+                <th>{t('assignedTo')}</th>
+                <th>{t('action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -303,7 +305,7 @@ export default function ToolsPage() {
                       {tool.image ? (
                         <img src={tool.image} alt={tool.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
                       ) : (
-                        <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>No Img</div>
+                        <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>{t('noImage')}</div>
                       )}
                     </div>
                   </td>
@@ -317,7 +319,7 @@ export default function ToolsPage() {
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button onClick={() => handlePrintQR(tool)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                        Print QR
+                        {t('printQr')}
                       </button>
                       <button
                         onClick={() => handleDeleteTool(tool)}
@@ -330,7 +332,7 @@ export default function ToolsPage() {
                           opacity: tool.status === 'ASSIGNED' ? 0.4 : 1,
                           cursor: tool.status === 'ASSIGNED' ? 'not-allowed' : 'pointer',
                         }}
-                        title={tool.status === 'ASSIGNED' ? 'Return the tool before deleting' : 'Delete tool'}
+                        title={tool.status === 'ASSIGNED' ? t('returnBeforeDeleting') : t('deleteTool')}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -340,7 +342,7 @@ export default function ToolsPage() {
               ))}
               {tools.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center' }}>No tools found.</td>
+                  <td colSpan={5} style={{ textAlign: 'center' }}>{t('noTools')}</td>
                 </tr>
               )}
             </tbody>

@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { exportToExcel } from '@/lib/exportToExcel';
+import { useTranslation } from '@/lib/LanguageContext';
 
 type Log = {
   id: string;
@@ -15,6 +16,7 @@ type Log = {
 };
 
 export default function LogsPage() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<Log[]>([]);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(true);
@@ -85,22 +87,22 @@ export default function LogsPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Logs & Reports</h1>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>{t('logsAndReports')}</h1>
         
         
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button onClick={exportPDF} className="btn btn-primary" disabled={logs.length === 0 || undefined}>
-            Export PDF
+            {t('exportPdf')}
           </button>
           <button onClick={handleExportExcel} className="btn btn-primary" disabled={logs.length === 0 || undefined}>
-            Export Excel
+            {t('exportExcel')}
           </button>
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: '2rem' }}>
         <div className="form-group" style={{ maxWidth: '300px', marginBottom: 0 }}>
-          <label className="form-label">Filter by Date</label>
+          <label className="form-label">{t('filterByDate')}</label>
           <input 
             type="date" 
             className="form-input" 
@@ -111,18 +113,18 @@ export default function LogsPage() {
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>Daily Activity</h3>
-        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>Unable to load logs. Check the database connection.</p>}
+        <h3 style={{ marginBottom: '1rem' }}>{t('dailyActivity')}</h3>
+        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{t('unableLoadLogs')}</p>}
         {loading ? (
-          <p>Loading...</p>
+          <p>{t('loading')}</p>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Technician</th>
-                <th>Tool</th>
-                <th>Action</th>
+                <th>{t('time')}</th>
+                <th>{t('technicians')}</th>
+                <th>{t('tool')}</th>
+                <th>{t('action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -140,7 +142,7 @@ export default function LogsPage() {
               ))}
               {logs.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center' }}>No logs found for this date.</td>
+                  <td colSpan={4} style={{ textAlign: 'center' }}>{t('noLogs')}</td>
                 </tr>
               )}
             </tbody>

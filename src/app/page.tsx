@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Activity, ArrowRight, Box, CheckCircle2, ClipboardList, Users, Wrench, Percent, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { useTranslation } from '@/lib/LanguageContext';
 
 type RecentLog = {
   id: string;
@@ -51,12 +52,10 @@ const initialStats: Stats = {
   toolsByTechnician: [],
 };
 
-const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date));
-
 const COLORS = ['#10b981', '#f59e0b']; // Available (green), Assigned (amber)
 
 export default function OverviewPage() {
+  const { t, lang } = useTranslation();
   const [stats, setStats] = useState<Stats>(initialStats);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -78,27 +77,29 @@ export default function OverviewPage() {
   }, []);
 
   const utilizationRate = stats.totalTools > 0 ? Math.round((stats.assignedTools / stats.totalTools) * 100) : 0;
+  const formatDate = (date: string) =>
+    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date));
 
   const widgets = [
-    { label: 'Technicians', value: stats.totalTechnicians, icon: Users, color: '#dbeafe', iconColor: '#1e40af' },
-    { label: 'Total Tools', value: stats.totalTools, icon: Wrench, color: '#ede9fe', iconColor: '#6d28d9' },
-    { label: 'Available', value: stats.availableTools, icon: CheckCircle2, color: '#d1fae5', iconColor: '#047857' },
-    { label: 'Assigned', value: stats.assignedTools, icon: ClipboardList, color: '#fef3c7', iconColor: '#b45309' },
-    { label: 'Utilization', value: `${utilizationRate}%`, icon: Percent, color: '#e0e7ff', iconColor: '#4338ca' },
-    { label: 'Activity Today', value: stats.todayLogs, icon: Activity, color: '#fee2e2', iconColor: '#b91c1c' },
-    { label: 'Total Movements', value: stats.totalLogs, icon: FileText, color: '#f3e8ff', iconColor: '#7e22ce' },
+    { label: t('technicians'), value: stats.totalTechnicians, icon: Users, color: '#dbeafe', iconColor: '#1e40af' },
+    { label: t('totalTools'), value: stats.totalTools, icon: Wrench, color: '#ede9fe', iconColor: '#6d28d9' },
+    { label: t('available'), value: stats.availableTools, icon: CheckCircle2, color: '#d1fae5', iconColor: '#047857' },
+    { label: t('assigned'), value: stats.assignedTools, icon: ClipboardList, color: '#fef3c7', iconColor: '#b45309' },
+    { label: t('utilization'), value: `${utilizationRate}%`, icon: Percent, color: '#e0e7ff', iconColor: '#4338ca' },
+    { label: t('activityToday'), value: stats.todayLogs, icon: Activity, color: '#fee2e2', iconColor: '#b91c1c' },
+    { label: t('totalMovements'), value: stats.totalLogs, icon: FileText, color: '#f3e8ff', iconColor: '#7e22ce' },
   ];
 
   const pieData = [
-    { name: 'Available', value: stats.availableTools },
-    { name: 'Assigned', value: stats.assignedTools }
+    { name: t('available'), value: stats.availableTools },
+    { name: t('assigned'), value: stats.assignedTools }
   ];
 
   return (
     <div>
-      <h1 className="page-title">Overview</h1>
+      <h1 className="page-title">{t('overview')}</h1>
 
-      {error && <p className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger)' }}>Unable to load dashboard data.</p>}
+      {error && <p className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger)' }}>{t('unableLoadDashboard')}</p>}
 
       <div className="widget-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         {widgets.map(({ label, value, icon: Icon, color, iconColor }) => (
@@ -116,8 +117,8 @@ export default function OverviewPage() {
 
       <div className="overview-columns" style={{ marginTop: '1.5rem' }}>
         <section className="card">
-          <h3 style={{ marginBottom: '1rem' }}>Tool Status Distribution</h3>
-          {loading ? <p className="text-muted">Loading chart...</p> : (
+          <h3 style={{ marginBottom: '1rem' }}>{t('toolStatusDistribution')}</h3>
+          {loading ? <p className="text-muted">{t('loading')}</p> : (
             <div style={{ height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -143,8 +144,8 @@ export default function OverviewPage() {
         </section>
 
         <section className="card">
-          <h3 style={{ marginBottom: '1rem' }}>7-Day Activity Trend</h3>
-          {loading ? <p className="text-muted">Loading chart...</p> : (
+          <h3 style={{ marginBottom: '1rem' }}>{t('sevenDayTrend')}</h3>
+          {loading ? <p className="text-muted">{t('loading')}</p> : (
             <div style={{ height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.usageTrend || []}>
@@ -152,8 +153,8 @@ export default function OverviewPage() {
                   <YAxis allowDecimals={false} tick={{fontSize: 12}} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="taken" name="Taken" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="returned" name="Returned" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="taken" name={t('taken')} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="returned" name={t('returned')} fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -169,13 +170,13 @@ export default function OverviewPage() {
               View all <ArrowRight size={16} />
             </Link>
           </div>
-          {loading ? <p className="text-muted">Loading...</p> : stats.recentLogs.length === 0 ? <p className="text-muted">No activity recorded yet.</p> : (
+          {loading ? <p className="text-muted">{t('loading')}</p> : stats.recentLogs.length === 0 ? <p className="text-muted">{t('noActivity')}</p> : (
             <div style={{ display: 'grid', gap: '1rem' }}>
               {stats.recentLogs.map((log) => (
                 <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                   <div>
                     <strong>{log.technician.name}</strong>
-                    <div className="text-muted" style={{ fontSize: '0.875rem' }}>{log.action === 'TAKEN' ? 'Took' : 'Returned'} {log.tool.name}</div>
+                    <div className="text-muted" style={{ fontSize: '0.875rem' }}>{log.action === 'TAKEN' ? t('taken') : t('returned')} {log.tool.name}</div>
                   </div>
                   <time className="text-muted" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }} dateTime={log.createdAt}>{formatDate(log.createdAt)}</time>
                 </div>
@@ -191,10 +192,10 @@ export default function OverviewPage() {
               Manage <ArrowRight size={16} />
             </Link>
           </div>
-          {loading ? <p className="text-muted">Loading...</p> : stats.toolsByTechnician.length === 0 ? <p className="text-muted">No technicians found.</p> : (
+          {loading ? <p className="text-muted">{t('loading')}</p> : stats.toolsByTechnician.length === 0 ? <p className="text-muted">{t('noTechniciansFound')}</p> : (
             <table className="data-table">
               <thead>
-                <tr><th>Technician</th><th>Assigned Tools</th></tr>
+                <tr><th>{t('technician')}</th><th>{t('assignedTools')}</th></tr>
               </thead>
               <tbody>
                 {stats.toolsByTechnician.slice(0, 5).map((technician) => (
@@ -216,13 +217,13 @@ export default function OverviewPage() {
             View Tools <ArrowRight size={16} />
           </Link>
         </div>
-        {loading ? <p className="text-muted">Loading...</p> : (!stats.unreturnedTools || stats.unreturnedTools.length === 0) ? <p className="text-muted">All materials are currently returned.</p> : (
+        {loading ? <p className="text-muted">{t('loading')}</p> : (!stats.unreturnedTools || stats.unreturnedTools.length === 0) ? <p className="text-muted">{t('allMaterialsReturned')}</p> : (
           <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 1 }}>Material Name</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 1 }}>Technician</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 1 }}>{t('materialName')}</th>
+                  <th style={{ position: 'sticky', top: 0, zIndex: 1 }}>{t('technician')}</th>
                 </tr>
               </thead>
               <tbody>

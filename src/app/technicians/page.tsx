@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { exportToExcel } from '@/lib/exportToExcel';
+import { useTranslation } from '@/lib/LanguageContext';
+
 
 type Technician = {
   id: string;
@@ -11,6 +13,7 @@ type Technician = {
 };
 
 export default function TechniciansPage() {
+  const { t } = useTranslation();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [name, setName] = useState('');
   const [idNumber, setIdNumber] = useState('');
@@ -70,18 +73,18 @@ export default function TechniciansPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Technicians Management</h1>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>{t('techniciansManagement')}</h1>
         <button onClick={handleExportExcel} className="btn btn-primary" disabled={technicians.length === 0}>
-          Export Excel
+          {t('exportExcel')}
         </button>
       </div>
       
-        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>Unable to load technicians. Check the database connection.</p>}
+        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{t('unableLoadTechnicians')}</p>}
       <div className="card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>Add New Technician</h3>
+        <h3 style={{ marginBottom: '1rem' }}>{t('addNewTechnician')}</h3>
         <form onSubmit={handleAddTechnician} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
           <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-            <label className="form-label">Name</label>
+            <label className="form-label">{t('name')}</label>
             <input 
               type="text" 
               className="form-input" 
@@ -92,7 +95,7 @@ export default function TechniciansPage() {
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-            <label className="form-label">ID Number</label>
+            <label className="form-label">{t('idNumber')}</label>
             <input 
               type="text" 
               className="form-input" 
@@ -103,22 +106,22 @@ export default function TechniciansPage() {
             />
           </div>
           <button type="submit" className="btn btn-primary" style={{ height: '38px' }}>
-            Add Technician
+            {t('addTechnician')}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>Technicians List</h3>
+        <h3 style={{ marginBottom: '1rem' }}>{t('techniciansList')}</h3>
         {loading ? (
-          <p>Loading...</p>
+          <p>{t('loading')}</p>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>ID Number</th>
-                <th>Assigned Tools</th>
+                <th>{t('name')}</th>
+                <th>{t('idNumber')}</th>
+                <th>{t('assignedTools')}</th>
               </tr>
             </thead>
             <tbody>
@@ -133,7 +136,7 @@ export default function TechniciansPage() {
               ))}
               {technicians.length === 0 && (
                 <tr>
-                  <td colSpan={3} style={{ textAlign: 'center' }}>No technicians found.</td>
+                  <td colSpan={3} style={{ textAlign: 'center' }}>{t('noTechnicians')}</td>
                 </tr>
               )}
             </tbody>

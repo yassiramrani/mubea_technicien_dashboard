@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Link from 'next/link'
-import { Wrench, Users, QrCode, FileText, LayoutDashboard } from 'lucide-react'
+import Providers from './Providers'
+import Sidebar from './Sidebar'
 
 export const metadata: Metadata = {
   title: 'Mubea Technician Dashboard',
@@ -16,34 +16,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <Providers>
         <div className="app-container">
-          <aside className="sidebar">
-            <div>
-              <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Mubea</h2>
-              <p className="text-muted" style={{ fontSize: '0.875rem' }}>Tool Management</p>
-            </div>
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <Link href="/" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
-                <LayoutDashboard size={18} /> Overview
-              </Link>
-              <Link href="/technicians" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
-                <Users size={18} /> Technicians
-              </Link>
-              <Link href="/tools" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
-                <Wrench size={18} /> Tools
-              </Link>
-              <Link href="/scanner" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
-                <QrCode size={18} /> Scanner
-              </Link>
-              <Link href="/logs" className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
-                <FileText size={18} /> Logs & Reports
-              </Link>
-            </nav>
-          </aside>
+          <Sidebar />
           <main className="main-content">
             {children}
           </main>
         </div>
+        </Providers>
       </body>
     </html>
   )
