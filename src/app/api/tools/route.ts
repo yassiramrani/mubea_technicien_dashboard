@@ -47,6 +47,26 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, image } = body;
+
+    if (!id || image === undefined) {
+      return NextResponse.json({ error: 'ID and image are required' }, { status: 400 });
+    }
+
+    const updatedTool = await prisma.tool.update({
+      where: { id },
+      data: { image },
+    });
+
+    return NextResponse.json(updatedTool);
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to update tool image' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

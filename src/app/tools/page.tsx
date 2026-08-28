@@ -19,6 +19,8 @@ export default function ToolsPage() {
   const [name, setName] = useState('');
   const [image, setImage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingToolId, setUploadingToolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [printingTool, setPrintingTool] = useState<Tool | null>(null);
   const [error, setError] = useState(false);
@@ -79,6 +81,67 @@ export default function ToolsPage() {
     } else {
       setImage('');
     }
+  };
+
+  const handleUpdateImageClick = (toolId: string) => {
+    setUploadingToolId(toolId);
+    if (updateFileInputRef.current) updateFileInputRef.current.click();
+  };
+
+  const handleUpdateImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingToolId) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        const newImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        
+        try {
+          const res = await fetch('/api/tools', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: uploadingToolId, image: newImageBase64 }),
+          });
+          if (res.ok) {
+            fetchTools();
+          } else {
+            alert('Failed to update image');
+          }
+        } catch (error) {
+          console.error(error);
+          alert('Failed to update image');
+        } finally {
+          setUploadingToolId(null);
+          if (updateFileInputRef.current) updateFileInputRef.current.value = '';
+        }
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAddTool = async (e: React.FormEvent) => {
@@ -232,11 +295,17 @@ export default function ToolsPage() {
               {tools.map((tool) => (
                 <tr key={tool.id}>
                   <td>
-                    {tool.image ? (
-                      <img src={tool.image} alt={tool.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
-                    ) : (
-                      <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>No Img</div>
-                    )}
+                    <div 
+                      onClick={() => handleUpdateImageClick(tool.id)}
+                      style={{ cursor: 'pointer', display: 'inline-block' }}
+                      title="Click to update image"
+                    >
+                      {tool.image ? (
+                        <img src={tool.image} alt={tool.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+                      ) : (
+                        <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>No Img</div>
+                      )}
+                    </div>
                   </td>
                   <td>{tool.name}</td>
                   <td>
@@ -278,6 +347,13 @@ export default function ToolsPage() {
           </table>
         )}
       </div>
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={updateFileInputRef} 
+        onChange={handleUpdateImageChange} 
+        style={{ display: 'none' }} 
+      />
     </div>
   );
 }

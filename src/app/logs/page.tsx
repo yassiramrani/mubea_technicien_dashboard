@@ -87,6 +87,7 @@ export default function LogsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Logs & Reports</h1>
         
+        
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button onClick={exportPDF} className="btn btn-primary" disabled={logs.length === 0 || undefined}>
             Export PDF
