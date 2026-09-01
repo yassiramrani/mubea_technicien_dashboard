@@ -215,11 +215,11 @@ export default function ToolsPage() {
     if (tools.length === 0) return;
     try {
       const doc = new jsPDF();
-      let x = 15;
+      let x = 12; // Start slightly closer to the left edge
       let y = 15;
-      const size = 40; // 40x40 mm QR code
-      const spacing = 15; // 15mm spacing between QR codes
-      const maxRow = 7; // 3 QR codes per row
+      const size = 20; // 20x20 mm QR code (fits 7 perfectly)
+      const spacing = 6; // 6mm spacing between QR codes
+      const maxRow = 7; // 7 QR codes per row
       let count = 0;
 
       for (let i = 0; i < tools.length; i++) {
@@ -237,19 +237,19 @@ export default function ToolsPage() {
 
         // Add to PDF
         doc.addImage(qrDataUrl, 'PNG', x, y, size, size);
-        doc.setFontSize(10);
+        doc.setFontSize(7); // Reduced font size to prevent overlapping
         doc.setTextColor(50, 50, 50);
         
         // Truncate name if too long
-        const shortName = tool.name.length > 25 ? tool.name.substring(0, 23) + '...' : tool.name;
-        doc.text(shortName, x + size/2, y + size + 5, { align: 'center' });
-        doc.text(tool.qrCode, x + size/2, y + size + 10, { align: 'center' });
+        const shortName = tool.name.length > 20 ? tool.name.substring(0, 18) + '...' : tool.name;
+        doc.text(shortName, x + size/2, y + size + 4, { align: 'center' });
+        doc.text(tool.qrCode, x + size/2, y + size + 7, { align: 'center' });
 
         count++;
         if (count % maxRow === 0) {
-          x = 15;
-          y += size + 20; // Move down
-          if (y > 250) { // If near bottom, new page
+          x = 12;
+          y += size + 12; // Move down (less vertical space needed now)
+          if (y > 275) { // A4 is 297mm high, break near the bottom
             doc.addPage();
             y = 15;
           }
