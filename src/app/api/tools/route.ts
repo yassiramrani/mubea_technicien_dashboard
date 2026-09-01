@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
-
+    //test
     // Generate a unique QR code string using safe uppercase characters
     // Safe characters are the same on AZERTY and QWERTY keyboards (no numbers, no A, Q, Z, W, M)
     const safeChars = 'BCDFGHJKLNPRSTUVX';
