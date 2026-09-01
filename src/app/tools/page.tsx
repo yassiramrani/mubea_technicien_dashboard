@@ -219,7 +219,7 @@ export default function ToolsPage() {
       let y = 15;
       const size = 40; // 40x40 mm QR code
       const spacing = 15; // 15mm spacing between QR codes
-      const maxRow = 3; // 3 QR codes per row
+      const maxRow = 7; // 3 QR codes per row
       let count = 0;
 
       for (let i = 0; i < tools.length; i++) {
