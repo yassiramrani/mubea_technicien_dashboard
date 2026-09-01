@@ -16,6 +16,15 @@ export default function ScannerPage() {
   const [error, setError] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
+  function decodeAzerty(input: string): string {
+ 
+// Example usage inside your onScan / onChange / onKeyDown handler:
+const handleScanSubmit = (scannedValue: string) => {
+  const normalizedValue = decodeAzerty(scannedValue.trim())
+  
+  // Now normalizedValue will be "component-019" instead of "co,ponent)&ç_"
+  searchTool(normalizedValue)
+}
 
   useEffect(() => {
     fetchTechnicians();
@@ -37,6 +46,27 @@ export default function ScannerPage() {
       console.error(error);
     }
   };
+   const azertyToQwertyMap: Record<string, string> = {
+    ',': 'm',
+    ')': '-',
+    '&': '1',
+    'é': '2',
+    '"': '3',
+    "'": '4',
+    '(': '5',
+    '-': '6',
+    'è': '7',
+    '_': '8',
+    'ç': '9',
+    'à': '0',
+  }
+
+  return input
+    .split('')
+    .map((char) => azertyToQwertyMap[char] ?? char)
+    .join('')
+}
+
 
   const handleScanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
