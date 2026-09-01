@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Edit2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
@@ -28,6 +28,10 @@ export default function ToolsPage() {
   const [loading, setLoading] = useState(true);
   const [printingTool, setPrintingTool] = useState<Tool | null>(null);
   const [error, setError] = useState(false);
+
+  // New state variables for inline name editing
+  const [editingToolId, setEditingToolId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>('');
 
   useEffect(() => {
     fetchTools();
@@ -148,6 +152,29 @@ export default function ToolsPage() {
     reader.readAsDataURL(file);
   };
 
+  // New handler for updating the tool's name
+  const handleUpdateName = async (toolId: string) => {
+    if (!editingName.trim()) return;
+    
+    try {
+      const res = await fetch('/api/tools', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: toolId, name: editingName.trim() }),
+      });
+      
+      if (res.ok) {
+        fetchTools();
+        setEditingToolId(null);
+      } else {
+        alert('Failed to update name');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update name');
+    }
+  };
+
   const handleAddTool = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
@@ -215,17 +242,16 @@ export default function ToolsPage() {
     if (tools.length === 0) return;
     try {
       const doc = new jsPDF();
-      let x = 12; // Start slightly closer to the left edge
+      let x = 12;
       let y = 15;
-      const size = 20; // 20x20 mm QR code (fits 7 perfectly)
-      const spacing = 6; // 6mm spacing between QR codes
-      const maxRow = 7; // 7 QR codes per row
+      const size = 20;
+      const spacing = 6;
+      const maxRow = 7;
       let count = 0;
 
       for (let i = 0; i < tools.length; i++) {
         const tool = tools[i];
         
-        // Generate QR code data URL
         const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
           width: 200,
           margin: 1,
@@ -235,12 +261,10 @@ export default function ToolsPage() {
           }
         });
 
-        // Add to PDF
         doc.addImage(qrDataUrl, 'PNG', x, y, size, size);
-        doc.setFontSize(7); // Reduced font size to prevent overlapping
+        doc.setFontSize(7);
         doc.setTextColor(50, 50, 50);
         
-        // Truncate name if too long
         const shortName = tool.name.length > 20 ? tool.name.substring(0, 18) + '...' : tool.name;
         doc.text(shortName, x + size/2, y + size + 4, { align: 'center' });
         doc.text(tool.qrCode, x + size/2, y + size + 7, { align: 'center' });
@@ -248,13 +272,13 @@ export default function ToolsPage() {
         count++;
         if (count % maxRow === 0) {
           x = 12;
-          y += size + 12; // Move down (less vertical space needed now)
-          if (y > 275) { // A4 is 297mm high, break near the bottom
+          y += size + 12;
+          if (y > 275) {
             doc.addPage();
             y = 15;
           }
         } else {
-          x += size + spacing; // Move right
+          x += size + spacing;
         }
       }
 
@@ -269,21 +293,11 @@ export default function ToolsPage() {
     <div>
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          #print-area, #print-area * {
-            visibility: visible;
-          }
+          body * { visibility: hidden; }
+          #print-area, #print-area * { visibility: visible; }
           #print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 2rem;
+            position: absolute; left: 0; top: 0; width: 100%;
+            display: flex; flex-direction: column; align-items: center; padding: 2rem;
           }
         }
       `}} />
@@ -370,7 +384,56 @@ export default function ToolsPage() {
                       )}
                     </div>
                   </td>
-                  <td>{tool.name}</td>
+                  
+                  {/* Updated Name Column with Inline Editing */}
+                  <td>
+                    {editingToolId === tool.id ? (
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ padding: '0.25rem 0.5rem', height: 'auto', width: '150px' }}
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleUpdateName(tool.id);
+                            if (e.key === 'Escape') setEditingToolId(null);
+                          }}
+                        />
+                        <button 
+                          onClick={() => handleUpdateName(tool.id)} 
+                          className="btn btn-primary" 
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Save
+                        </button>
+                        <button 
+                          onClick={() => setEditingToolId(null)} 
+                          className="btn btn-outline" 
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>{tool.name}</span>
+                        <button 
+                          onClick={() => {
+                            setEditingToolId(tool.id);
+                            setEditingName(tool.name);
+                          }}
+                          className="btn btn-outline"
+                          style={{ padding: '0.2rem', border: 'none', color: '#64748b', background: 'transparent' }}
+                          title="Edit name"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+
                   <td>
                     <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
                       {tool.status}
