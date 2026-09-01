@@ -238,15 +238,26 @@ export default function ToolsPage() {
     exportToExcel(data, 'Mubea_Tools');
   };
 
-  const handleDownloadAllQRs = async () => {
+ const handleDownloadAllQRs = async () => {
     if (tools.length === 0) return;
     try {
       const doc = new jsPDF();
-      let x = 12;
-      let y = 15;
-      const size = 20;
-      const spacing = 6;
-      const maxRow = 7;
+      
+      const startX = 17; // Centers the 176mm grid on a 210mm wide A4 page
+      let x = startX;
+      let y = 16; // Top margin
+
+      const physicalCellSize = 44; 
+      const logicalCellWidth = 22; // Half of the 44mm physical cell
+      const qrSize = 18; // Smaller QR to fit safely inside the 22mm width
+      
+      // Center the 18mm QR horizontally inside the 22mm logical space (2mm offset)
+      const offsetX = (logicalCellWidth - qrSize) / 2; 
+      
+      // Center the 18mm QR vertically inside the 44mm physical height (13mm offset)
+      const offsetY = (physicalCellSize - qrSize) / 2;
+
+      const maxCols = 8; // 8 logical columns (2 QRs inside each of the 4 physical stickers)
       let count = 0;
 
       for (let i = 0; i < tools.length; i++) {
@@ -261,24 +272,20 @@ export default function ToolsPage() {
           }
         });
 
-        doc.addImage(qrDataUrl, 'PNG', x, y, size, size);
-        doc.setFontSize(7);
-        doc.setTextColor(50, 50, 50);
-        
-        const shortName = tool.name.length > 20 ? tool.name.substring(0, 18) + '...' : tool.name;
-        doc.text(shortName, x + size/2, y + size + 4, { align: 'center' });
-        doc.text(tool.qrCode, x + size/2, y + size + 7, { align: 'center' });
+        // Place the QR code without any text labels
+        doc.addImage(qrDataUrl, 'PNG', x + offsetX, y + offsetY, qrSize, qrSize);
 
         count++;
-        if (count % maxRow === 0) {
-          x = 12;
-          y += size + 12;
-          if (y > 275) {
+        if (count % maxCols === 0) {
+          x = startX; // Reset to left margin
+          y += physicalCellSize; // Move down by exactly one 44mm physical cell
+          
+          if (y > 250) { // If near bottom of A4 page
             doc.addPage();
-            y = 15;
+            y = 16;
           }
         } else {
-          x += size + spacing;
+          x += logicalCellWidth; // Move right by 22mm (next logical cell)
         }
       }
 
