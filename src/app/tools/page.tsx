@@ -243,22 +243,25 @@ export default function ToolsPage() {
     try {
       const doc = new jsPDF();
       
-      const startX = 17; // Centers the 176mm grid on a 210mm wide A4 page
-      let x = startX;
-      let y = 16; // Top margin
+      // --- CONFIGURATION: Adjust these with a ruler (in millimeters) ---
+      // If the print is too far left, increase PAGE_LEFT_MARGIN.
+      // If the print is too high, increase PAGE_TOP_MARGIN.
+      const PAGE_LEFT_MARGIN = 17; // Distance from left edge of paper to the first cut line
+      const PAGE_TOP_MARGIN = 16;  // Distance from top edge of paper to the first cut line
+      const CELL_WIDTH = 44;       // Physical width of one sticker
+      const CELL_HEIGHT = 44;      // Physical height of one sticker
+      const QR_SIZE = 18;          // Printed size of the QR code
+      const COLS = 4;              // Number of physical sticker columns on the page
+      // -----------------------------------------------------------------
 
-      const physicalCellSize = 44; 
-      const logicalCellWidth = 22; // Half of the 44mm physical cell
-      const qrSize = 18; // Smaller QR to fit safely inside the 22mm width
-      
-      // Center the 18mm QR horizontally inside the 22mm logical space (2mm offset)
-      const offsetX = (logicalCellWidth - qrSize) / 2; 
-      
-      // Center the 18mm QR vertically inside the 44mm physical height (13mm offset)
-      const offsetY = (physicalCellSize - qrSize) / 2;
+      let currentY = PAGE_TOP_MARGIN;
+      let colIndex = 0; // Tracks our logical position (0 to 7)
 
-      const maxCols = 8; // 8 logical columns (2 QRs inside each of the 4 physical stickers)
-      let count = 0;
+      // Calculate offsets to perfectly center the two QRs inside one 44mm physical cell
+      const halfCellWidth = CELL_WIDTH / 2;
+      const offsetY = (CELL_HEIGHT - QR_SIZE) / 2; // Centers vertically
+      const offsetLeftQR = (halfCellWidth - QR_SIZE) / 2; // Centers left QR in the first half
+      const offsetRightQR = halfCellWidth + ((halfCellWidth - QR_SIZE) / 2); // Centers right QR in the second half
 
       for (let i = 0; i < tools.length; i++) {
         const tool = tools[i];
@@ -266,26 +269,33 @@ export default function ToolsPage() {
         const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
           width: 200,
           margin: 1,
-          color: {
-            dark: '#000000',
-            light: '#ffffff'
-          }
+          color: { dark: '#000000', light: '#ffffff' }
         });
 
-        // Place the QR code without any text labels
-        doc.addImage(qrDataUrl, 'PNG', x + offsetX, y + offsetY, qrSize, qrSize);
+        // Determine which physical column (0 to 3) we are in
+        const physicalCol = Math.floor(colIndex / 2);
+        // Determine if this QR goes on the left (0) or right (1) side of that sticker
+        const isRightSide = colIndex % 2;
 
-        count++;
-        if (count % maxCols === 0) {
-          x = startX; // Reset to left margin
-          y += physicalCellSize; // Move down by exactly one 44mm physical cell
+        // Calculate absolute position to prevent any "drifting"
+        const xPos = PAGE_LEFT_MARGIN + (physicalCol * CELL_WIDTH) + (isRightSide ? offsetRightQR : offsetLeftQR);
+        const yPos = currentY + offsetY;
+
+        // Place the QR code
+        doc.addImage(qrDataUrl, 'PNG', xPos, yPos, QR_SIZE, QR_SIZE);
+
+        colIndex++;
+
+        // If we filled all 8 logical slots (4 physical columns * 2 QRs)
+        if (colIndex >= COLS * 2) {
+          colIndex = 0;
+          currentY += CELL_HEIGHT; // Move down to the next row of stickers
           
-          if (y > 250) { // If near bottom of A4 page
+          // If near bottom of A4 page (A4 is 297mm tall)
+          if (currentY + CELL_HEIGHT > 280) { 
             doc.addPage();
-            y = 16;
+            currentY = PAGE_TOP_MARGIN;
           }
-        } else {
-          x += logicalCellWidth; // Move right by 22mm (next logical cell)
         }
       }
 
