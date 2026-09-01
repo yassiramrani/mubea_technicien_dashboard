@@ -8,6 +8,29 @@ type Technician = {
   name: string;
 };
 
+// 1. Helper function moved outside the component for cleaner scope
+function decodeAzerty(input: string): string {
+  const azertyToQwertyMap: Record<string, string> = {
+    ',': 'm',
+    ')': '-',
+    '&': '1',
+    'é': '2',
+    '"': '3',
+    "'": '4',
+    '(': '5',
+    '-': '6',
+    'è': '7',
+    '_': '8',
+    'ç': '9',
+    'à': '0',
+  };
+
+  return input
+    .split('')
+    .map((char) => azertyToQwertyMap[char] ?? char)
+    .join('');
+}
+
 export default function ScannerPage() {
   const { t } = useTranslation();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -16,15 +39,6 @@ export default function ScannerPage() {
   const [error, setError] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
-  function decodeAzerty(input: string): string {
- 
-// Example usage inside your onScan / onChange / onKeyDown handler:
-const handleScanSubmit = (scannedValue: string) => {
-  const normalizedValue = decodeAzerty(scannedValue.trim())
-  
-  // Now normalizedValue will be "component-019" instead of "co,ponent)&ç_"
-  searchTool(normalizedValue)
-}
 
   useEffect(() => {
     fetchTechnicians();
@@ -46,27 +60,6 @@ const handleScanSubmit = (scannedValue: string) => {
       console.error(error);
     }
   };
-   const azertyToQwertyMap: Record<string, string> = {
-    ',': 'm',
-    ')': '-',
-    '&': '1',
-    'é': '2',
-    '"': '3',
-    "'": '4',
-    '(': '5',
-    '-': '6',
-    'è': '7',
-    '_': '8',
-    'ç': '9',
-    'à': '0',
-  }
-
-  return input
-    .split('')
-    .map((char) => azertyToQwertyMap[char] ?? char)
-    .join('')
-}
-
 
   const handleScanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,14 +70,19 @@ const handleScanSubmit = (scannedValue: string) => {
       return;
     }
     
-    const scannedCode = inputRef.current?.value.trim();
-    if (!scannedCode) return;
+    // 2. Get the raw scanned value
+    const rawScannedCode = inputRef.current?.value.trim();
+    if (!rawScannedCode) return;
+
+    // 3. Decode the AZERTY layout to standard QWERTY
+    const decodedCode = decodeAzerty(rawScannedCode);
 
     try {
       const res = await fetch('/api/tools/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrCode: scannedCode, technicianId: selectedTech }),
+        // 4. Send the decoded code to your API
+        body: JSON.stringify({ qrCode: decodedCode, technicianId: selectedTech }),
       });
       
       const data = await res.json();
@@ -92,7 +90,7 @@ const handleScanSubmit = (scannedValue: string) => {
       if (res.ok) {
         setScanResult({ text: data.message, type: 'success', tool: data.tool });
       } else {
-        setScanResult({ text: `${data.error} (Scanned: "${scannedCode}")`, type: 'error' });
+        setScanResult({ text: `${data.error} (Scanned: "${decodedCode}")`, type: 'error' });
       }
     } catch (error) {
       setScanResult({ text: t('failedProcessScan'), type: 'error' });
