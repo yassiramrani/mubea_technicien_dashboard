@@ -47,23 +47,29 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export async function PUT(req: Request) {
   try {
-    const body = await request.json();
-    const { id, image } = body;
+    const body = await req.json();
+    const { id, image, name } = body;
 
-    if (!id || image === undefined) {
-      return NextResponse.json({ error: 'ID and image are required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 });
     }
+
+    // Prepare the data object with whatever fields were sent from the frontend
+    const updateData: { image?: string | null; name?: string } = {};
+    if (image !== undefined) updateData.image = image;
+    if (name !== undefined) updateData.name = name;
 
     const updatedTool = await prisma.tool.update({
       where: { id },
-      data: { image },
+      data: updateData,
     });
 
     return NextResponse.json(updatedTool);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to update tool image' }, { status: 500 });
+    console.error('Error updating tool:', error);
+    return NextResponse.json({ error: 'Failed to update tool' }, { status: 500 });
   }
 }
 
