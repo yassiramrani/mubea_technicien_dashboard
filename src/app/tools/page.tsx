@@ -5,6 +5,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Trash2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
+import { jsPDF } from 'jspdf';
+import QRCode from 'qrcode';
 
 type Tool = {
   id: string;
@@ -209,6 +211,60 @@ export default function ToolsPage() {
     exportToExcel(data, 'Mubea_Tools');
   };
 
+  const handleDownloadAllQRs = async () => {
+    if (tools.length === 0) return;
+    try {
+      const doc = new jsPDF();
+      let x = 15;
+      let y = 15;
+      const size = 40; // 40x40 mm QR code
+      const spacing = 15; // 15mm spacing between QR codes
+      const maxRow = 3; // 3 QR codes per row
+      let count = 0;
+
+      for (let i = 0; i < tools.length; i++) {
+        const tool = tools[i];
+        
+        // Generate QR code data URL
+        const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
+          width: 200,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        });
+
+        // Add to PDF
+        doc.addImage(qrDataUrl, 'PNG', x, y, size, size);
+        doc.setFontSize(10);
+        doc.setTextColor(50, 50, 50);
+        
+        // Truncate name if too long
+        const shortName = tool.name.length > 25 ? tool.name.substring(0, 23) + '...' : tool.name;
+        doc.text(shortName, x + size/2, y + size + 5, { align: 'center' });
+        doc.text(tool.qrCode, x + size/2, y + size + 10, { align: 'center' });
+
+        count++;
+        if (count % maxRow === 0) {
+          x = 15;
+          y += size + 20; // Move down
+          if (y > 250) { // If near bottom, new page
+            doc.addPage();
+            y = 15;
+          }
+        } else {
+          x += size + spacing; // Move right
+        }
+      }
+
+      doc.save('All_Tools_QR_Codes.pdf');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF');
+    }
+  };
+
   return (
     <div>
       <style dangerouslySetInnerHTML={{__html: `
@@ -242,9 +298,14 @@ export default function ToolsPage() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Tools Management</h1>
-        <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
-          {t('exportExcel')}
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={handleDownloadAllQRs} className="btn btn-outline" disabled={tools.length === 0}>
+            Download All QRs
+          </button>
+          <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
+            {t('exportExcel')}
+          </button>
+        </div>
       </div>
       
       <div className="card" style={{ marginBottom: '2rem' }}>
