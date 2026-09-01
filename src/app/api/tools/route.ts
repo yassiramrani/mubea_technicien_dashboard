@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     // Generate a unique QR code string using safe uppercase characters
     // Safe characters are the same on AZERTY and QWERTY keyboards (no numbers, no A, Q, Z, W, M)
-    const safeChars = 'BCDFGHJKLNPRSTUVXY';
+    const safeChars = 'BCDFGHJKLNPRSTUVX';
     let qrCode = '';
     for (let i = 0; i < 12; i++) {
       qrCode += safeChars.charAt(Math.floor(Math.random() * safeChars.length));

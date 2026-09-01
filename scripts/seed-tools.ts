@@ -2,12 +2,12 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// Generates a random 12-character uppercase string (e.g., YBVRKDHPDCCN)
+// Excludes A, M, Q, W, Y, Z to prevent all QWERTY/AZERTY/QWERTZ layout conflicts
 function generateRandomCode(length = 12) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const safeChars = 'BCDEFGHIJKLNOPRSTUVX' 
   let result = ''
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
+    result += safeChars.charAt(Math.floor(Math.random() * safeChars.length))
   }
   return result
 }
