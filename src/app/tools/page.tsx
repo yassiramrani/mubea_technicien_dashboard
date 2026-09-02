@@ -51,7 +51,50 @@ export default function ToolsPage() {
       setLoading(false);
     }
   };
+const handleDownloadThermalQRs = async () => {
+    if (tools.length === 0) return;
+    try {
+      // Initialize jsPDF specifically for 58mm thermal rolls
+      // format: [58, 60] means 58mm wide by 60mm tall per label cut
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [58, 60] 
+      });
 
+      for (let i = 0; i < tools.length; i++) {
+        const tool = tools[i];
+        
+        const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
+          width: 200,
+          margin: 1,
+          color: { dark: '#000000', light: '#ffffff' }
+        });
+
+        // 58mm paper has about 48mm of printable width.
+        // We make the QR 30x30mm and center it ((58 - 30) / 2 = 14mm left margin).
+        doc.addImage(qrDataUrl, 'PNG', 14, 5, 30, 30);
+        
+        // Add the name and code directly under it
+        doc.setFontSize(8);
+        doc.setTextColor(0, 0, 0);
+        
+        const shortName = tool.name.length > 20 ? tool.name.substring(0, 18) + '...' : tool.name;
+        doc.text(shortName, 29, 42, { align: 'center' }); // 29 is the horizontal center of 58mm
+        doc.text(tool.qrCode, 29, 47, { align: 'center' });
+
+        // Add a new page (which acts as a paper feed/cut line) for every tool EXCEPT the last one
+        if (i < tools.length - 1) {
+          doc.addPage();
+        }
+      }
+
+      doc.save('Thermal_Tools_QR_Codes.pdf');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF');
+    }
+  };
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -336,6 +379,9 @@ export default function ToolsPage() {
           <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
             {t('exportExcel')}
           </button>
+            <button onClick={handleDownloadThermalQRs} className="btn btn-outline" disabled={tools.length === 0}>
+  Download Thermal QRs
+</button>
         </div>
       </div>
       
