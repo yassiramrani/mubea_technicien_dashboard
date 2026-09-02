@@ -69,21 +69,25 @@ const handleDownloadThermalQRs = async () => {
           color: { dark: '#000000', light: '#ffffff' }
         });
 
-        // With the text removed, we can increase the QR size to 26mm for better scanning
-        const qrSize = 26;
-        // Center horizontally: (40mm width - 26mm QR) / 2 = 7mm left margin
-        const xPos = 7;
-        // Center vertically: (30mm height - 26mm QR) / 2 = 2mm top margin
-        const yPos = 2;
+        // --- NEW SMALLER DIMENSIONS ---
+        const qrSize = 16; // Shrunk from 22mm to 16mm
+        const xPos = 12;   // Perfectly centered horizontally ((40 - 16) / 2 = 12)
+        const yPos = 4;    // Safe 4mm gap from the top edge
 
         doc.addImage(qrDataUrl, 'PNG', xPos, yPos, qrSize, qrSize);
+        
+        doc.setFontSize(7); 
+        doc.setTextColor(0, 0, 0);
+        
+        // Text placed safely near the bottom, well away from the gap
+        doc.text(tool.qrCode, 20, 26, { align: 'center' });
 
         if (i < tools.length - 1) {
           doc.addPage([40, 30]);
         }
       }
 
-      doc.save('Thermal_Labels_40x30.pdf');
+      doc.save('Thermal_Labels_Small.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
