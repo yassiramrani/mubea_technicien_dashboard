@@ -54,12 +54,11 @@ export default function ToolsPage() {
 const handleDownloadThermalQRs = async () => {
     if (tools.length === 0) return;
     try {
-      // Initialize jsPDF specifically for 58mm thermal rolls
-      // format: [58, 60] means 58mm wide by 60mm tall per label cut
+      // Set PDF dimensions to exactly match your MLabel template (40mm width x 30mm height)
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
-        format: [58, 60] 
+        format: [40, 30] 
       });
 
       for (let i = 0; i < tools.length; i++) {
@@ -67,29 +66,32 @@ const handleDownloadThermalQRs = async () => {
         
         const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
           width: 200,
-          margin: 1,
+          margin: 1, // Keep margin minimal to maximize scannability
           color: { dark: '#000000', light: '#ffffff' }
         });
 
-        // 58mm paper has about 48mm of printable width.
-        // We make the QR 30x30mm and center it ((58 - 30) / 2 = 14mm left margin).
-        doc.addImage(qrDataUrl, 'PNG', 14, 5, 30, 30);
+        // For a 40x30 label, a 22x22mm QR code works best.
+        // Center it horizontally: (40 - 22) / 2 = 9mm left margin
+        const qrSize = 22;
+        const xPos = 9;
+        const yPos = 2; // 2mm top margin
+
+        doc.addImage(qrDataUrl, 'PNG', xPos, yPos, qrSize, qrSize);
         
-        // Add the name and code directly under it
-        doc.setFontSize(8);
+        // Add the secure code under the QR
+        doc.setFontSize(7); // Smaller font for the 40x30 label
         doc.setTextColor(0, 0, 0);
         
-        const shortName = tool.name.length > 20 ? tool.name.substring(0, 18) + '...' : tool.name;
-        doc.text(shortName, 29, 42, { align: 'center' }); // 29 is the horizontal center of 58mm
-        doc.text(tool.qrCode, 29, 47, { align: 'center' });
+        // 20 is the exact horizontal center of the 40mm label
+        doc.text(tool.qrCode, 20, 27, { align: 'center' });
 
-        // Add a new page (which acts as a paper feed/cut line) for every tool EXCEPT the last one
+        // Add a new 40x30 page for every tool EXCEPT the last one
         if (i < tools.length - 1) {
-          doc.addPage();
+          doc.addPage([40, 30]);
         }
       }
 
-      doc.save('Thermal_Tools_QR_Codes.pdf');
+      doc.save('Thermal_Labels_40x30.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
