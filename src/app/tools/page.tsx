@@ -54,7 +54,6 @@ export default function ToolsPage() {
 const handleDownloadThermalQRs = async () => {
     if (tools.length === 0) return;
     try {
-      // Set PDF dimensions to exactly match your MLabel template (40mm width x 30mm height)
       const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -66,26 +65,19 @@ const handleDownloadThermalQRs = async () => {
         
         const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
           width: 200,
-          margin: 1, // Keep margin minimal to maximize scannability
+          margin: 1, 
           color: { dark: '#000000', light: '#ffffff' }
         });
 
-        // For a 40x30 label, a 22x22mm QR code works best.
-        // Center it horizontally: (40 - 22) / 2 = 9mm left margin
-        const qrSize = 22;
-        const xPos = 9;
-        const yPos = 2; // 2mm top margin
+        // With the text removed, we can increase the QR size to 26mm for better scanning
+        const qrSize = 26;
+        // Center horizontally: (40mm width - 26mm QR) / 2 = 7mm left margin
+        const xPos = 7;
+        // Center vertically: (30mm height - 26mm QR) / 2 = 2mm top margin
+        const yPos = 2;
 
         doc.addImage(qrDataUrl, 'PNG', xPos, yPos, qrSize, qrSize);
-        
-        // Add the secure code under the QR
-        doc.setFontSize(7); // Smaller font for the 40x30 label
-        doc.setTextColor(0, 0, 0);
-        
-        // 20 is the exact horizontal center of the 40mm label
-        doc.text(tool.qrCode, 20, 27, { align: 'center' });
 
-        // Add a new 40x30 page for every tool EXCEPT the last one
         if (i < tools.length - 1) {
           doc.addPage([40, 30]);
         }
