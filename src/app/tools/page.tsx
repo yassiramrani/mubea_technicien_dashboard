@@ -6,6 +6,7 @@ import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
 import { getCode128Bars, renderCode128DataUrl } from '@/lib/code128';
+import QRCode from 'react-qr-code';
 
 type Tool = {
   id: string;
@@ -16,20 +17,17 @@ type Tool = {
   technician: { name: string } | null;
 };
 
-function Code128Barcode({ value }: { value: string }) {
-  const { bars, modules } = getCode128Bars(value);
-
+export function PrintQRCode({ value }: { value: string }) {
   return (
-    <svg
-      className="label-barcode"
-      viewBox={`0 0 ${modules} 100`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`Code 128 barcode for ${value}`}
-    >
-      <rect width={modules} height="100" fill="#ffffff" />
-      {bars.map((bar, index) => <rect key={index} x={bar.x} y="0" width={bar.width} height="100" fill="#000000" />)}
-    </svg>
+    <div className="label-qrcode">
+      <QRCode
+        size={256}
+        style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+        value={value}
+        viewBox={`0 0 256 256`}
+        level="M" // Medium error correction - perfect for physical labels
+      />
+    </div>
   );
 }
 
@@ -346,7 +344,7 @@ export default function ToolsPage() {
       {printingTool && (
         <div id="print-area">
           <h2 style={{ marginBottom: '1rem' }}>{printingTool.name}</h2>
-          <Code128Barcode value={printingTool.qrCode} />
+          <PrintQRCode value={printingTool.qrCode} />
           <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666' }}>{printingTool.qrCode}</p>
         </div>
       )}

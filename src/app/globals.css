@@ -154,12 +154,16 @@ h1, h2, h3 {
   color: var(--text-muted);
 }
 
-.label-barcode {
-  display: block;
-  width: min(100%, 360px);
-  height: 92px;
+.label-qrcode {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 90px;
+  margin: 0 auto;
   background: #fff;
-  shape-rendering: crispEdges;
+  padding: 5px;
+  
 }
 
 /* Table */
