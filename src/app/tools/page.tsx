@@ -5,8 +5,8 @@ import { Trash2, Edit2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
-import { getCode128Bars, renderCode128DataUrl } from '@/lib/code128';
 import QRCode from 'react-qr-code';
+import QRCodeLib from 'qrcode'; // Added for jsPDF generation
 
 type Tool = {
   id: string;
@@ -22,10 +22,10 @@ export function PrintQRCode({ value }: { value: string }) {
     <div className="label-qrcode">
       <QRCode
         size={256}
-        style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+        style={{ height: "100%", width: "100%", display: "block" }}
         value={value}
         viewBox={`0 0 256 256`}
-        level="M" // Medium error correction - perfect for physical labels
+        level="M"
       />
     </div>
   );
@@ -43,7 +43,6 @@ export default function ToolsPage() {
   const [printingTool, setPrintingTool] = useState<Tool | null>(null);
   const [error, setError] = useState(false);
 
-  // New state variables for inline name editing
   const [editingToolId, setEditingToolId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
 
@@ -66,15 +65,26 @@ export default function ToolsPage() {
     const timer = window.setTimeout(() => void fetchTools(), 0);
     return () => window.clearTimeout(timer);
   }, [fetchTools]);
-  const addBarcodeLabel = (doc: jsPDF, tool: Tool, x = 0, y = 0) => {
-    const barcodeDataUrl = renderCode128DataUrl(tool.qrCode);
 
-    // Label stock: 40 × 20 mm. The 2 mm left/right quiet area and 10 mm bars
-    // keep the whole Code 128 symbol inside the printable portion of the sticker.
-    doc.addImage(barcodeDataUrl, 'PNG', x + 2, y + 3, 36, 10);
-    doc.setFontSize(7);
-    doc.setTextColor(0, 0, 0);
-    doc.text(tool.qrCode, x + 20, y + 16.5, { align: 'center' });
+  // Dynamically generate a QR Code Data URL for the PDF
+  const addQrCodeLabel = async (doc: jsPDF, tool: Tool, x = 0, y = 0) => {
+    try {
+      // Set margin: 0 to maximize the QR code size without white borders
+      const qrDataUrl = await QRCodeLib.toDataURL(tool.qrCode, { margin: 0, width: 100 });
+      
+      // Place 18x18mm QR code on the left side of the 40x20mm label
+      doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, 18, 18);
+      
+      // Place Tool Name and ID on the right side
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(7);
+      doc.text(tool.name.substring(0, 18), x + 21, y + 8, { maxWidth: 18 }); // Truncate long names
+      
+      doc.setFontSize(6);
+      doc.text(tool.qrCode, x + 21, y + 14, { maxWidth: 18 });
+    } catch (err) {
+      console.error('Failed to generate QR for PDF:', err);
+    }
   };
 
   const handleDownloadThermalBarcodes = async () => {
@@ -83,23 +93,59 @@ export default function ToolsPage() {
       const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: [40, 20],
+        format: [40, 20], // Adjusted format to match your true label stock
       });
 
       for (let i = 0; i < tools.length; i++) {
-        addBarcodeLabel(doc, tools[i]);
-
+        await addQrCodeLabel(doc, tools[i]);
+        
         if (i < tools.length - 1) {
           doc.addPage([40, 20], 'landscape');
         }
       }
 
-      doc.save('Thermal_Barcode_Labels_40x20mm.pdf');
+      doc.save('QR_40x20mm.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
     }
   };
+
+  const handleDownloadAllBarcodes = async () => {
+    if (tools.length === 0) return;
+    try {
+      const doc = new jsPDF();
+      const PAGE_LEFT_MARGIN = 17;
+      const PAGE_TOP_MARGIN = 16;
+      const LABEL_WIDTH = 40;
+      const LABEL_HEIGHT = 20;
+      const COLS = 4;
+
+      let currentY = PAGE_TOP_MARGIN;
+      let colIndex = 0;
+
+      for (let i = 0; i < tools.length; i++) {
+        await addQrCodeLabel(doc, tools[i], PAGE_LEFT_MARGIN + (colIndex * LABEL_WIDTH), currentY);
+        colIndex++;
+
+        if (colIndex >= COLS) {
+          colIndex = 0;
+          currentY += LABEL_HEIGHT;
+
+          if (currentY + LABEL_HEIGHT > 280) {
+            doc.addPage();
+            currentY = PAGE_TOP_MARGIN;
+          }
+        }
+      }
+
+      doc.save('All_Tools_QR_Labels_A4.pdf');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF');
+    }
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -286,44 +332,6 @@ export default function ToolsPage() {
     exportToExcel(data, 'Mubea_Tools');
   };
 
- const handleDownloadAllBarcodes = async () => {
-    if (tools.length === 0) return;
-    try {
-      const doc = new jsPDF();
-
-      // A4 sheet setup for the same 40 × 20 mm label stock.
-      const PAGE_LEFT_MARGIN = 17;
-      const PAGE_TOP_MARGIN = 16;
-      const LABEL_WIDTH = 40;
-      const LABEL_HEIGHT = 20;
-      const COLS = 4;
-
-      let currentY = PAGE_TOP_MARGIN;
-      let colIndex = 0;
-
-      for (let i = 0; i < tools.length; i++) {
-        addBarcodeLabel(doc, tools[i], PAGE_LEFT_MARGIN + (colIndex * LABEL_WIDTH), currentY);
-
-        colIndex++;
-
-        if (colIndex >= COLS) {
-          colIndex = 0;
-          currentY += LABEL_HEIGHT;
-
-          if (currentY + LABEL_HEIGHT > 280) {
-            doc.addPage();
-            currentY = PAGE_TOP_MARGIN;
-          }
-        }
-      }
-
-      doc.save('All_Tools_Barcode_Labels_40x20mm.pdf');
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF');
-    }
-  };
-
   return (
     <div>
       <style dangerouslySetInnerHTML={{__html: `
@@ -331,21 +339,45 @@ export default function ToolsPage() {
           @page { size: 40mm 20mm; margin: 0; }
           body * { visibility: hidden; }
           #print-area, #print-area * { visibility: visible; }
+          
+          /* Switch to a horizontal layout to fit the rectangular label */
           #print-area {
             position: absolute; left: 0; top: 0; width: 40mm; height: 20mm;
-            display: flex; flex-direction: column; align-items: center; padding: 3mm 2mm 0;
+            display: flex; flex-direction: row; align-items: center; justify-content: flex-start;
+            padding: 1mm; box-sizing: border-box; background: white;
           }
-          #print-area h2 { display: none; }
-          #print-area .label-barcode { width: 36mm; height: 10mm; }
-          #print-area p { margin-top: 1.5mm !important; font-size: 7pt !important; color: #000 !important; }
+          
+          #print-area .label-qrcode { 
+            width: 18mm; height: 18mm; flex-shrink: 0; margin: 0; 
+          }
+          #print-area .label-qrcode svg {
+            width: 100%; height: 100%; display: block;
+          }
+          
+          #print-area .print-text { 
+            margin-left: 2mm; display: flex; flex-direction: column; justify-content: center; 
+            width: 18mm; overflow: hidden;
+          }
+          
+          #print-area .print-name { 
+            font-size: 7pt !important; font-weight: bold; color: #000 !important; 
+            margin: 0; line-height: 1.1; word-wrap: break-word;
+          }
+          
+          #print-area .print-id { 
+            font-size: 6pt !important; color: #000 !important; margin: 1mm 0 0 0 !important; 
+            word-wrap: break-word; line-height: 1.1;
+          }
         }
       `}} />
 
       {printingTool && (
         <div id="print-area">
-          <h2 style={{ marginBottom: '1rem' }}>{printingTool.name}</h2>
           <PrintQRCode value={printingTool.qrCode} />
-          <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666' }}>{printingTool.qrCode}</p>
+          <div className="print-text">
+            <p className="print-name">{printingTool.name}</p>
+            <p className="print-id">{printingTool.qrCode}</p>
+          </div>
         </div>
       )}
 
@@ -420,7 +452,7 @@ export default function ToolsPage() {
                       title="Click to update image"
                     >
                       {tool.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- Tool photos may be local data URLs.
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={tool.image} alt={tool.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
                       ) : (
                         <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>{t('noImage')}</div>
@@ -428,7 +460,6 @@ export default function ToolsPage() {
                     </div>
                   </td>
                   
-                  {/* Updated Name Column with Inline Editing */}
                   <td>
                     {editingToolId === tool.id ? (
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
