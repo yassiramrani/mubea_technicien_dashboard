@@ -69,19 +69,18 @@ export default function ToolsPage() {
   // Dynamically generate a QR Code Data URL for the PDF
   const addQrCodeLabel = async (doc: jsPDF, tool: Tool, x = 0, y = 0) => {
     try {
-      // Set margin: 0 to maximize the QR code size without white borders
       const qrDataUrl = await QRCodeLib.toDataURL(tool.qrCode, { margin: 0, width: 100 });
       
-      // Place 18x18mm QR code on the left side of the 40x20mm label
-      doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, 18, 18);
+      // Shrunk QR code to 15x15mm and added 2.5mm top margin to center it vertically
+      doc.addImage(qrDataUrl, 'PNG', x + 1.5, y + 2.5, 15, 15);
       
-      // Place Tool Name and ID on the right side
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(7);
-      doc.text(tool.name.substring(0, 18), x + 21, y + 8, { maxWidth: 18 }); // Truncate long names
+      // Increased font size slightly and gave the text a wider maxWidth
+      doc.setFontSize(8);
+      doc.text(tool.name.substring(0, 18), x + 18, y + 8, { maxWidth: 20 }); 
       
-      doc.setFontSize(6);
-      doc.text(tool.qrCode, x + 21, y + 14, { maxWidth: 18 });
+      doc.setFontSize(7);
+      doc.text(tool.qrCode, x + 18, y + 14, { maxWidth: 20 });
     } catch (err) {
       console.error('Failed to generate QR for PDF:', err);
     }
@@ -340,32 +339,33 @@ export default function ToolsPage() {
           body * { visibility: hidden; }
           #print-area, #print-area * { visibility: visible; }
           
-          /* Switch to a horizontal layout to fit the rectangular label */
           #print-area {
             position: absolute; left: 0; top: 0; width: 40mm; height: 20mm;
             display: flex; flex-direction: row; align-items: center; justify-content: flex-start;
-            padding: 1mm; box-sizing: border-box; background: white;
+            padding: 2mm; box-sizing: border-box; background: white;
           }
           
+          /* Shrunk the QR code to 15mm to stop edge bleeding */
           #print-area .label-qrcode { 
-            width: 18mm; height: 18mm; flex-shrink: 0; margin: 0; 
+            width: 15mm; height: 15mm; flex-shrink: 0; margin: 0; 
           }
           #print-area .label-qrcode svg {
             width: 100%; height: 100%; display: block;
           }
           
+          /* Gave the text container more room and bigger font */
           #print-area .print-text { 
             margin-left: 2mm; display: flex; flex-direction: column; justify-content: center; 
-            width: 18mm; overflow: hidden;
+            width: 20mm; overflow: hidden;
           }
           
           #print-area .print-name { 
-            font-size: 7pt !important; font-weight: bold; color: #000 !important; 
+            font-size: 8pt !important; font-weight: bold; color: #000 !important; 
             margin: 0; line-height: 1.1; word-wrap: break-word;
           }
           
           #print-area .print-id { 
-            font-size: 6pt !important; color: #000 !important; margin: 1mm 0 0 0 !important; 
+            font-size: 7pt !important; color: #000 !important; margin: 1mm 0 0 0 !important; 
             word-wrap: break-word; line-height: 1.1;
           }
         }
