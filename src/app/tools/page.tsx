@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { Trash2, Edit2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
-import QRCode from 'qrcode';
+import { getCode128Bars, renderCode128DataUrl } from '@/lib/code128';
 
 type Tool = {
   id: string;
@@ -16,6 +15,23 @@ type Tool = {
   status: string;
   technician: any | null;
 };
+
+function Code128Barcode({ value }: { value: string }) {
+  const { bars, modules } = getCode128Bars(value);
+
+  return (
+    <svg
+      className="label-barcode"
+      viewBox={`0 0 ${modules} 100`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={`Code 128 barcode for ${value}`}
+    >
+      <rect width={modules} height="100" fill="#ffffff" />
+      {bars.map((bar, index) => <rect key={index} x={bar.x} y="0" width={bar.width} height="100" fill="#000000" />)}
+    </svg>
+  );
+}
 
 export default function ToolsPage() {
   const { t } = useTranslation();
@@ -51,43 +67,35 @@ export default function ToolsPage() {
       setLoading(false);
     }
   };
-const handleDownloadThermalQRs = async () => {
+  const addBarcodeLabel = (doc: jsPDF, tool: Tool, x = 0, y = 0) => {
+    const barcodeDataUrl = renderCode128DataUrl(tool.qrCode);
+
+    // Label stock: 40 × 20 mm. The 2 mm left/right quiet area and 10 mm bars
+    // keep the whole Code 128 symbol inside the printable portion of the sticker.
+    doc.addImage(barcodeDataUrl, 'PNG', x + 2, y + 3, 36, 10);
+    doc.setFontSize(7);
+    doc.setTextColor(0, 0, 0);
+    doc.text(tool.qrCode, x + 20, y + 16.5, { align: 'center' });
+  };
+
+  const handleDownloadThermalBarcodes = async () => {
     if (tools.length === 0) return;
     try {
       const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: [40, 30] 
+        format: [40, 20],
       });
 
       for (let i = 0; i < tools.length; i++) {
-        const tool = tools[i];
-        
-        const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
-          width: 200,
-          margin: 1, 
-          color: { dark: '#000000', light: '#ffffff' }
-        });
-
-        // --- NEW SMALLER DIMENSIONS ---
-        const qrSize = 16; // Shrunk from 22mm to 16mm
-        const xPos = 12;   // Perfectly centered horizontally ((40 - 16) / 2 = 12)
-        const yPos = 4;    // Safe 4mm gap from the top edge
-
-        doc.addImage(qrDataUrl, 'PNG', xPos, yPos, qrSize, qrSize);
-        
-        doc.setFontSize(7); 
-        doc.setTextColor(0, 0, 0);
-        
-        // Text placed safely near the bottom, well away from the gap
-        doc.text(tool.qrCode, 20, 26, { align: 'center' });
+        addBarcodeLabel(doc, tools[i]);
 
         if (i < tools.length - 1) {
-          doc.addPage([40, 30]);
+          doc.addPage([40, 20], 'landscape');
         }
       }
 
-      doc.save('Thermal_Labels_Small.pdf');
+      doc.save('Thermal_Barcode_Labels_40x20mm.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
@@ -259,7 +267,7 @@ const handleDownloadThermalQRs = async () => {
     }
   };
 
-  const handlePrintQR = (tool: Tool) => {
+  const handlePrintBarcode = (tool: Tool) => {
     setPrintingTool(tool);
     setTimeout(() => {
       window.print();
@@ -279,68 +287,38 @@ const handleDownloadThermalQRs = async () => {
     exportToExcel(data, 'Mubea_Tools');
   };
 
- const handleDownloadAllQRs = async () => {
+ const handleDownloadAllBarcodes = async () => {
     if (tools.length === 0) return;
     try {
       const doc = new jsPDF();
-      
-      // --- CONFIGURATION: Adjust these with a ruler (in millimeters) ---
-      // If the print is too far left, increase PAGE_LEFT_MARGIN.
-      // If the print is too high, increase PAGE_TOP_MARGIN.
-      const PAGE_LEFT_MARGIN = 17; // Distance from left edge of paper to the first cut line
-      const PAGE_TOP_MARGIN = 16;  // Distance from top edge of paper to the first cut line
-      const CELL_WIDTH = 44;       // Physical width of one sticker
-      const CELL_HEIGHT = 44;      // Physical height of one sticker
-      const QR_SIZE = 18;          // Printed size of the QR code
-      const COLS = 4;              // Number of physical sticker columns on the page
-      // -----------------------------------------------------------------
+
+      // A4 sheet setup for the same 40 × 20 mm label stock.
+      const PAGE_LEFT_MARGIN = 17;
+      const PAGE_TOP_MARGIN = 16;
+      const LABEL_WIDTH = 40;
+      const LABEL_HEIGHT = 20;
+      const COLS = 4;
 
       let currentY = PAGE_TOP_MARGIN;
-      let colIndex = 0; // Tracks our logical position (0 to 7)
-
-      // Calculate offsets to perfectly center the two QRs inside one 44mm physical cell
-      const halfCellWidth = CELL_WIDTH / 2;
-      const offsetY = (CELL_HEIGHT - QR_SIZE) / 2; // Centers vertically
-      const offsetLeftQR = (halfCellWidth - QR_SIZE) / 2; // Centers left QR in the first half
-      const offsetRightQR = halfCellWidth + ((halfCellWidth - QR_SIZE) / 2); // Centers right QR in the second half
+      let colIndex = 0;
 
       for (let i = 0; i < tools.length; i++) {
-        const tool = tools[i];
-        
-        const qrDataUrl = await QRCode.toDataURL(tool.qrCode, {
-          width: 200,
-          margin: 1,
-          color: { dark: '#000000', light: '#ffffff' }
-        });
-
-        // Determine which physical column (0 to 3) we are in
-        const physicalCol = Math.floor(colIndex / 2);
-        // Determine if this QR goes on the left (0) or right (1) side of that sticker
-        const isRightSide = colIndex % 2;
-
-        // Calculate absolute position to prevent any "drifting"
-        const xPos = PAGE_LEFT_MARGIN + (physicalCol * CELL_WIDTH) + (isRightSide ? offsetRightQR : offsetLeftQR);
-        const yPos = currentY + offsetY;
-
-        // Place the QR code
-        doc.addImage(qrDataUrl, 'PNG', xPos, yPos, QR_SIZE, QR_SIZE);
+        addBarcodeLabel(doc, tools[i], PAGE_LEFT_MARGIN + (colIndex * LABEL_WIDTH), currentY);
 
         colIndex++;
 
-        // If we filled all 8 logical slots (4 physical columns * 2 QRs)
-        if (colIndex >= COLS * 2) {
+        if (colIndex >= COLS) {
           colIndex = 0;
-          currentY += CELL_HEIGHT; // Move down to the next row of stickers
-          
-          // If near bottom of A4 page (A4 is 297mm tall)
-          if (currentY + CELL_HEIGHT > 280) { 
+          currentY += LABEL_HEIGHT;
+
+          if (currentY + LABEL_HEIGHT > 280) {
             doc.addPage();
             currentY = PAGE_TOP_MARGIN;
           }
         }
       }
 
-      doc.save('All_Tools_QR_Codes.pdf');
+      doc.save('All_Tools_Barcode_Labels_40x20mm.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF');
@@ -351,19 +329,23 @@ const handleDownloadThermalQRs = async () => {
     <div>
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
+          @page { size: 40mm 20mm; margin: 0; }
           body * { visibility: hidden; }
           #print-area, #print-area * { visibility: visible; }
           #print-area {
-            position: absolute; left: 0; top: 0; width: 100%;
-            display: flex; flex-direction: column; align-items: center; padding: 2rem;
+            position: absolute; left: 0; top: 0; width: 40mm; height: 20mm;
+            display: flex; flex-direction: column; align-items: center; padding: 3mm 2mm 0;
           }
+          #print-area h2 { display: none; }
+          #print-area .label-barcode { width: 36mm; height: 10mm; }
+          #print-area p { margin-top: 1.5mm !important; font-size: 7pt !important; color: #000 !important; }
         }
       `}} />
 
       {printingTool && (
         <div id="print-area">
           <h2 style={{ marginBottom: '1rem' }}>{printingTool.name}</h2>
-          <QRCodeSVG value={printingTool.qrCode} size={256} />
+          <Code128Barcode value={printingTool.qrCode} />
           <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#666' }}>{printingTool.qrCode}</p>
         </div>
       )}
@@ -371,15 +353,15 @@ const handleDownloadThermalQRs = async () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Tools Management</h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={handleDownloadAllQRs} className="btn btn-outline" disabled={tools.length === 0}>
-            Download All QRs
+          <button onClick={handleDownloadAllBarcodes} className="btn btn-outline" disabled={tools.length === 0}>
+            {t('downloadBarcodeSheet')}
           </button>
           <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
             {t('exportExcel')}
           </button>
-            <button onClick={handleDownloadThermalQRs} className="btn btn-outline" disabled={tools.length === 0}>
-  Download Thermal QRs
-</button>
+            <button onClick={handleDownloadThermalBarcodes} className="btn btn-outline" disabled={tools.length === 0}>
+              {t('downloadThermalBarcodes')}
+            </button>
         </div>
       </div>
       
@@ -503,8 +485,8 @@ const handleDownloadThermalQRs = async () => {
                   <td>{tool.technician ? tool.technician.name : '-'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => handlePrintQR(tool)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                        {t('printQr')}
+                      <button onClick={() => handlePrintBarcode(tool)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
+                        {t('printBarcode')}
                       </button>
                       <button
                         onClick={() => handleDeleteTool(tool)}

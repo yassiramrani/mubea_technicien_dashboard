@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import crypto from 'crypto';
 
 export async function GET() {
   try {
@@ -24,12 +23,12 @@ export async function POST(request: Request) {
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
-    //test
-    // Generate a unique QR code string using safe uppercase characters
-    // Safe characters are the same on AZERTY and QWERTY keyboards (no numbers, no A, Q, Z, W, M)
+    // Generate a compact label ID using safe uppercase characters. Eight characters
+    // leave enough width for a reliably scannable Code 128 barcode on a 40 × 20 mm label.
+    // The field remains named `qrCode` for backward-compatible scanner and database lookups.
     const safeChars = 'BCDFGHJKLNPRSTUVX';
     let qrCode = '';
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
       qrCode += safeChars.charAt(Math.floor(Math.random() * safeChars.length));
     }
 

@@ -154,6 +154,14 @@ h1, h2, h3 {
   color: var(--text-muted);
 }
 
+.label-barcode {
+  display: block;
+  width: min(100%, 360px);
+  height: 92px;
+  background: #fff;
+  shape-rendering: crispEdges;
+}
+
 /* Table */
 .data-table {
   width: 100%;
