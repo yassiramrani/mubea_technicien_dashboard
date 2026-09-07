@@ -10,7 +10,7 @@ export async function GET() {
       },
     });
     return NextResponse.json(technicians);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch technicians' }, { status: 500 });
   }
 }
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(technician, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create technician' }, { status: 500 });
   }
 }

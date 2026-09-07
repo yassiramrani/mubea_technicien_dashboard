@@ -10,7 +10,7 @@ export async function GET() {
       },
     });
     return NextResponse.json(tools);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch tools' }, { status: 500 });
   }
 }
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(tool, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create tool' }, { status: 500 });
   }
 }
@@ -96,7 +96,7 @@ export async function DELETE(request: Request) {
     await prisma.tool.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to delete tool' }, { status: 500 });
   }
 }

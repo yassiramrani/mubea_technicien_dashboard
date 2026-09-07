@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Trash2, Edit2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
@@ -13,7 +13,7 @@ type Tool = {
   image?: string | null;
   qrCode: string;
   status: string;
-  technician: any | null;
+  technician: { name: string } | null;
 };
 
 function Code128Barcode({ value }: { value: string }) {
@@ -49,11 +49,7 @@ export default function ToolsPage() {
   const [editingToolId, setEditingToolId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
 
-  useEffect(() => {
-    fetchTools();
-  }, []);
-
-  const fetchTools = async () => {
+  const fetchTools = useCallback(async () => {
     try {
       const res = await fetch('/api/tools');
       const data = await res.json();
@@ -66,7 +62,12 @@ export default function ToolsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchTools(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchTools]);
   const addBarcodeLabel = (doc: jsPDF, tool: Tool, x = 0, y = 0) => {
     const barcodeDataUrl = renderCode128DataUrl(tool.qrCode);
 
@@ -421,6 +422,7 @@ export default function ToolsPage() {
                       title="Click to update image"
                     >
                       {tool.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- Tool photos may be local data URLs.
                         <img src={tool.image} alt={tool.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
                       ) : (
                         <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>{t('noImage')}</div>

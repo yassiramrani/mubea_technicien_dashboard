@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
@@ -22,11 +22,7 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    fetchLogs();
-  }, [date]);
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/logs?date=${date}`);
@@ -40,7 +36,12 @@ export default function LogsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [date]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchLogs(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchLogs]);
 
   const exportPDF = () => {
     const doc = new jsPDF();

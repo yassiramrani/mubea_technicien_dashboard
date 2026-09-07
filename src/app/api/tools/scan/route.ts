@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: 'Invalid tool status' }, { status: 400 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to process scan' }, { status: 500 });
   }
 }

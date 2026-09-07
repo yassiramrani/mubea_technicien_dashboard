@@ -91,7 +91,7 @@ export async function GET() {
         tools: t.tools.map((tool) => tool.name),
       })).sort((a, b) => b.toolCount - a.toolCount),
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
   }
 }

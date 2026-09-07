@@ -1,11 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from '@/lib/LanguageContext';
 
 type Technician = {
   id: string;
   name: string;
+};
+
+type ScannedTool = {
+  name: string;
+  status: string;
+  image?: string | null;
+};
+
+type ScanResponse = {
+  message?: string;
+  error?: string;
+  tool?: ScannedTool;
 };
 
 // 1. Helper function moved outside the component for cleaner scope
@@ -35,20 +47,12 @@ export default function ScannerPage() {
   const { t } = useTranslation();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [selectedTech, setSelectedTech] = useState<string>('');
-  const [scanResult, setScanResult] = useState<{ text: string; type: 'success' | 'error'; tool?: any } | null>(null);
+  const [scanResult, setScanResult] = useState<{ text: string; type: 'success' | 'error'; tool?: ScannedTool } | null>(null);
   const [error, setError] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetchTechnicians();
-    // Auto focus the input when component mounts
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
-
-  const fetchTechnicians = async () => {
+  const fetchTechnicians = useCallback(async () => {
     try {
       const res = await fetch('/api/technicians');
       const data = await res.json();
@@ -59,7 +63,13 @@ export default function ScannerPage() {
       setError(true);
       console.error(error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchTechnicians(), 0);
+    inputRef.current?.focus();
+    return () => window.clearTimeout(timer);
+  }, [fetchTechnicians]);
 
   const handleScanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,14 +95,14 @@ export default function ScannerPage() {
         body: JSON.stringify({ qrCode: decodedCode, technicianId: selectedTech }),
       });
       
-      const data = await res.json();
+      const data = await res.json() as ScanResponse;
       
       if (res.ok) {
-        setScanResult({ text: data.message, type: 'success', tool: data.tool });
+        setScanResult({ text: data.message ?? 'Scan processed successfully.', type: 'success', tool: data.tool });
       } else {
-        setScanResult({ text: `${data.error} (Scanned: "${decodedCode}")`, type: 'error' });
+        setScanResult({ text: `${data.error ?? 'Unable to process scan'} (Scanned: "${decodedCode}")`, type: 'error' });
       }
-    } catch (error) {
+    } catch {
       setScanResult({ text: t('failedProcessScan'), type: 'error' });
     } finally {
       // Clear the input for the next scan
@@ -142,6 +152,7 @@ export default function ScannerPage() {
             {scanResult.tool && (
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontSize: '0.875rem', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
                 {scanResult.tool.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Tool photos may be local data URLs.
                   <img src={scanResult.tool.image} alt={scanResult.tool.name} style={{ width: '160px', height: '160px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: '60px', height: '60px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center', fontSize: '10px' }}>{t('noImage')}</div>

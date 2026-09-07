@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 
@@ -9,7 +9,7 @@ type Technician = {
   id: string;
   name: string;
   idNumber: string;
-  tools: any[];
+  tools: Array<{ name: string }>;
 };
 
 export default function TechniciansPage() {
@@ -20,11 +20,7 @@ export default function TechniciansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    fetchTechnicians();
-  }, []);
-
-  const fetchTechnicians = async () => {
+  const fetchTechnicians = useCallback(async () => {
     try {
       const res = await fetch('/api/technicians');
       const data = await res.json();
@@ -37,7 +33,12 @@ export default function TechniciansPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchTechnicians(), 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchTechnicians]);
 
   const handleAddTechnician = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +66,7 @@ export default function TechniciansPage() {
       Name: tech.name,
       IDNumber: tech.idNumber,
       AssignedToolsCount: tech.tools.length,
-      AssignedToolsNames: tech.tools.map((t: any) => t.name).join(', '),
+      AssignedToolsNames: tech.tools.map((tool) => tool.name).join(', '),
     }));
     exportToExcel(data, 'Mubea_Technicians');
   };

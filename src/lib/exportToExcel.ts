@@ -2,7 +2,9 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import QRCode from 'qrcode';
 
-export async function exportToExcel(data: any[], fileName: string) {
+type ExportRow = Record<string, ExcelJS.CellValue>;
+
+export async function exportToExcel(data: ExportRow[], fileName: string) {
   if (!data || data.length === 0) return;
 
   const workbook = new ExcelJS.Workbook();
@@ -53,7 +55,7 @@ export async function exportToExcel(data: any[], fileName: string) {
       cell.font = { size: 11 };
       
       const header = headers[colNumber - 1];
-      if (header === 'QRCode' && item[header]) {
+      if (header === 'QRCode' && typeof item[header] === 'string') {
         hasQRCode = true;
         cell.value = ''; // Clear text value as we'll place an image
       }
@@ -71,9 +73,10 @@ export async function exportToExcel(data: any[], fileName: string) {
     const item = data[i];
     const qrColIndex = headers.indexOf('QRCode');
     
-    if (qrColIndex !== -1 && item['QRCode']) {
+    const qrCode = item.QRCode;
+    if (qrColIndex !== -1 && typeof qrCode === 'string') {
       try {
-        const qrBase64 = await QRCode.toDataURL(item['QRCode'], { width: 100, margin: 1 });
+        const qrBase64 = await QRCode.toDataURL(qrCode, { width: 100, margin: 1 });
         
         const imageId = workbook.addImage({
           base64: qrBase64,
