@@ -1,15 +1,30 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentBusinessDayBounds } from '@/lib/toolAvailability';
 
 export async function GET() {
   try {
+    const { start: today } = getCurrentBusinessDayBounds();
+
     const tools = await prisma.tool.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         technician: true,
+        logs: {
+          where: { action: 'TAKEN' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { createdAt: true },
+        },
       },
     });
-    return NextResponse.json(tools);
+
+    return NextResponse.json(tools.map(({ logs, ...tool }) => {
+      const checkedOutAt = logs[0]?.createdAt ?? null;
+      const isOverdue = tool.status === 'ASSIGNED' && checkedOutAt !== null && checkedOutAt < today;
+
+      return { ...tool, checkedOutAt, isOverdue };
+    }));
   } catch {
     return NextResponse.json({ error: 'Failed to fetch tools' }, { status: 500 });
   }

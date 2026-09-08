@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Edit2 } from 'lucide-react';
+import { AlertTriangle, Trash2, Edit2 } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
@@ -15,6 +15,8 @@ type Tool = {
   qrCode: string;
   status: string;
   technician: { name: string } | null;
+  checkedOutAt: string | null;
+  isOverdue: boolean;
 };
 
 export function PrintQRCode({ value }: { value: string }) {
@@ -32,7 +34,7 @@ export function PrintQRCode({ value }: { value: string }) {
 }
 
 export default function ToolsPage() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [tools, setTools] = useState<Tool[]>([]);
   const [name, setName] = useState('');
   const [image, setImage] = useState('');
@@ -331,6 +333,9 @@ export default function ToolsPage() {
     exportToExcel(data, 'Mubea_Tools');
   };
 
+  const formatCheckedOutAt = (value: string) =>
+    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+
   return (
     <div>
       <style dangerouslySetInnerHTML={{__html: `
@@ -444,7 +449,7 @@ export default function ToolsPage() {
             </thead>
             <tbody>
               {tools.map((tool) => (
-                <tr key={tool.id}>
+                <tr key={tool.id} className={tool.isOverdue ? 'tool-overdue-row' : undefined}>
                   <td>
                     <div 
                       onClick={() => handleUpdateImageClick(tool.id)}
@@ -509,11 +514,29 @@ export default function ToolsPage() {
                   </td>
 
                   <td>
-                    <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
-                      {tool.status}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
+                        {tool.status}
+                      </span>
+                      {tool.isOverdue && (
+                        <span
+                          className="badge badge-danger"
+                          title={`${t('checkedOut')}: ${formatCheckedOutAt(tool.checkedOutAt!)}`}
+                        >
+                          <AlertTriangle size={12} aria-hidden="true" />
+                          {t('overdue')}
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td>{tool.technician ? tool.technician.name : '-'}</td>
+                  <td>
+                    {tool.technician ? tool.technician.name : '-'}
+                    {tool.isOverdue && tool.checkedOutAt && (
+                      <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                        {t('checkedOut')}: {formatCheckedOutAt(tool.checkedOutAt)}
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button onClick={() => handlePrintBarcode(tool)} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>

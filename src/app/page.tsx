@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Activity, ArrowRight, Box, CheckCircle2, ClipboardList, Users, Wrench, Percent, FileText } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, Box, CheckCircle2, ClipboardList, Users, Wrench, Percent, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useTranslation } from '@/lib/LanguageContext';
 
@@ -24,6 +24,8 @@ type UnreturnedTool = {
   id: string;
   name: string;
   technicianName: string;
+  checkedOutAt: string | null;
+  isOverdue: boolean;
 };
 
 type Stats = {
@@ -228,9 +230,24 @@ export default function OverviewPage() {
               </thead>
               <tbody>
                 {stats.unreturnedTools.map((tool) => (
-                  <tr key={tool.id}>
-                    <td><strong>{tool.name}</strong></td>
-                    <td>{tool.technicianName}</td>
+                  <tr key={tool.id} className={tool.isOverdue ? 'tool-overdue-row' : undefined}>
+                    <td>
+                      <strong>{tool.name}</strong>
+                      {tool.isOverdue && (
+                        <span className="badge badge-danger" style={{ marginLeft: '0.5rem' }}>
+                          <AlertTriangle size={12} aria-hidden="true" />
+                          {t('overdue')}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {tool.technicianName}
+                      {tool.isOverdue && tool.checkedOutAt && (
+                        <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                          {t('checkedOut')}: {formatDate(tool.checkedOutAt)}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

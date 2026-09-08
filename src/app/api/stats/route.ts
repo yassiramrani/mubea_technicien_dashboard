@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentBusinessDayBounds } from '@/lib/toolAvailability';
 
 export async function GET() {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    const { start: today, end: tomorrow } = getCurrentBusinessDayBounds();
+    const endOfDay = new Date(tomorrow.getTime() - 1);
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
@@ -48,7 +47,15 @@ export async function GET() {
       }),
       prisma.tool.findMany({
         where: { status: 'ASSIGNED' },
-        include: { technician: true },
+        include: {
+          technician: true,
+          logs: {
+            where: { action: 'TAKEN' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { createdAt: true },
+          },
+        },
         orderBy: { name: 'asc' },
       }),
       prisma.log.count(),
@@ -78,10 +85,12 @@ export async function GET() {
       todayLogs,
       recentLogs,
       usageTrend,
-      unreturnedTools: unreturnedTools.map(t => ({
-        id: t.id,
-        name: t.name,
-        technicianName: t.technician?.name || 'Unknown'
+      unreturnedTools: unreturnedTools.map(({ logs, ...tool }) => ({
+        id: tool.id,
+        name: tool.name,
+        technicianName: tool.technician?.name || 'Unknown',
+        checkedOutAt: logs[0]?.createdAt ?? null,
+        isOverdue: logs[0]?.createdAt ? logs[0].createdAt < today : false,
       })),
       totalLogs,
       toolsByTechnician: toolsByTechnician.map((t) => ({

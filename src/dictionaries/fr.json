@@ -85,5 +85,7 @@
   "utilization": "Utilisation",
   "activityToday": "Activite du jour",
   "totalMovements": "Total des mouvements",
-  "materialName": "Nom du materiel"
+  "materialName": "Nom du materiel",
+  "overdue": "En retard",
+  "checkedOut": "Sorti le"
 }

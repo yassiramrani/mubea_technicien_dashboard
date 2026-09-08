@@ -207,6 +207,18 @@ h1, h2, h3 {
   color: #1e40af;
 }
 
+.badge-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.data-table tbody tr.tool-overdue-row > td {
+  background-color: #fff7ed;
+}
+
 /* Scanner overlay */
 #reader {
   width: 100%;
