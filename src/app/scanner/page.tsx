@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Html5Qrcode as Html5QrcodeInstance } from 'html5-qrcode';
+import { Camera, Keyboard, X } from 'lucide-react';
 import { useTranslation } from '@/lib/LanguageContext';
 
-type Technician = {
-  id: string;
-  name: string;
-};
+type Technician = { id: string; name: string };
 
 type ScannedTool = {
   name: string;
@@ -20,37 +19,28 @@ type ScanResponse = {
   tool?: ScannedTool;
 };
 
-// 1. Helper function moved outside the component for cleaner scope
 function decodeAzerty(input: string): string {
   const azertyToQwertyMap: Record<string, string> = {
-    ',': 'm',
-    ')': '-',
-    '&': '1',
-    'é': '2',
-    '"': '3',
-    "'": '4',
-    '(': '5',
-    '-': '6',
-    'è': '7',
-    '_': '8',
-    'ç': '9',
-    'à': '0',
+    ',': 'm', ')': '-', '&': '1', 'é': '2', '"': '3', "'": '4', '(': '5',
+    '-': '6', 'è': '7', '_': '8', 'ç': '9', 'à': '0',
   };
 
-  return input
-    .split('')
-    .map((char) => azertyToQwertyMap[char] ?? char)
-    .join('');
+  return input.split('').map((char) => azertyToQwertyMap[char] ?? char).join('');
 }
 
 export default function ScannerPage() {
   const { t } = useTranslation();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
-  const [selectedTech, setSelectedTech] = useState<string>('');
+  const [selectedTech, setSelectedTech] = useState('');
   const [scanResult, setScanResult] = useState<{ text: string; type: 'success' | 'error'; tool?: ScannedTool } | null>(null);
-  const [error, setError] = useState(false);
-  
+  const [techniciansError, setTechniciansError] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraScannerRef = useRef<Html5QrcodeInstance | null>(null);
+  const isProcessingCameraCodeRef = useRef(false);
 
   const fetchTechnicians = useCallback(async () => {
     try {
@@ -58,136 +48,207 @@ export default function ScannerPage() {
       const data = await res.json();
       if (!res.ok || !Array.isArray(data)) throw new Error('Unable to load technicians');
       setTechnicians(data);
-      setError(false);
+      setTechniciansError(false);
     } catch (error) {
-      setError(true);
+      setTechniciansError(true);
       console.error(error);
     }
   }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchTechnicians(), 0);
-    inputRef.current?.focus();
+    if (window.matchMedia('(min-width: 721px)').matches) inputRef.current?.focus();
     return () => window.clearTimeout(timer);
   }, [fetchTechnicians]);
 
-  const handleScanSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const stopCamera = useCallback(async () => {
+    setCameraOpen(false);
+    const scanner = cameraScannerRef.current;
+    cameraScannerRef.current = null;
+    if (!scanner) return;
+
+    try {
+      if (scanner.isScanning) await scanner.stop();
+      scanner.clear();
+    } catch (error) {
+      console.error('Unable to release camera scanner:', error);
+    }
+  }, []);
+
+  const processScannedCode = useCallback(async (rawScannedCode: string, focusHardwareInput: boolean) => {
     if (!selectedTech) {
       setScanResult({ text: t('pleaseSelectTechnician'), type: 'error' });
-      if (inputRef.current) inputRef.current.value = '';
       return;
     }
-    
-    // 2. Get the raw scanned value
-    const rawScannedCode = inputRef.current?.value.trim();
-    if (!rawScannedCode) return;
 
-    // 3. Decode the AZERTY layout to standard QWERTY
-    const decodedCode = decodeAzerty(rawScannedCode);
+    const decodedCode = decodeAzerty(rawScannedCode.trim());
+    if (!decodedCode) return;
 
     try {
       const res = await fetch('/api/tools/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // 4. Send the decoded code to your API
         body: JSON.stringify({ qrCode: decodedCode, technicianId: selectedTech }),
       });
-      
       const data = await res.json() as ScanResponse;
-      
+
       if (res.ok) {
-        setScanResult({ text: data.message ?? 'Scan processed successfully.', type: 'success', tool: data.tool });
+        setScanResult({ text: data.message ?? t('scanProcessed'), type: 'success', tool: data.tool });
       } else {
-        setScanResult({ text: `${data.error ?? 'Unable to process scan'} (Scanned: "${decodedCode}")`, type: 'error' });
+        setScanResult({ text: `${data.error ?? t('failedProcessScan')} (Scanned: "${decodedCode}")`, type: 'error' });
       }
     } catch {
       setScanResult({ text: t('failedProcessScan'), type: 'error' });
     } finally {
-      // Clear the input for the next scan
-      if (inputRef.current) {
+      if (focusHardwareInput && inputRef.current) {
         inputRef.current.value = '';
         inputRef.current.focus();
       }
     }
+  }, [selectedTech, t]);
+
+  const handleHardwareSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void processScannedCode(inputRef.current?.value ?? '', true);
+  };
+
+  const handleCameraSuccess = useCallback((decodedText: string) => {
+    if (isProcessingCameraCodeRef.current) return;
+    isProcessingCameraCodeRef.current = true;
+
+    void (async () => {
+      await stopCamera();
+      await processScannedCode(decodedText, false);
+      isProcessingCameraCodeRef.current = false;
+    })();
+  }, [processScannedCode, stopCamera]);
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+
+    let cancelled = false;
+    const startCamera = async () => {
+      setCameraStarting(true);
+      setCameraError(null);
+
+      try {
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+        if (cancelled) return;
+
+        const scanner = new Html5Qrcode('camera-reader', {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false,
+        });
+        cameraScannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1 },
+          handleCameraSuccess,
+          () => undefined,
+        );
+
+        if (!cancelled) setCameraStarting(false);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Unable to start camera scanner:', error);
+        setCameraError(t('cameraUnavailable'));
+        setCameraStarting(false);
+        setCameraOpen(false);
+      }
+    };
+
+    void startCamera();
+
+    return () => {
+      cancelled = true;
+      const scanner = cameraScannerRef.current;
+      cameraScannerRef.current = null;
+      if (!scanner) return;
+      void (async () => {
+        try {
+          if (scanner.isScanning) await scanner.stop();
+          scanner.clear();
+        } catch (error) {
+          console.error('Unable to release camera scanner:', error);
+        }
+      })();
+    };
+  }, [cameraOpen, handleCameraSuccess, t]);
+
+  useEffect(() => () => {
+    void stopCamera();
+  }, [stopCamera]);
+
+  const openCamera = () => {
+    if (!selectedTech) {
+      setScanResult({ text: t('pleaseSelectTechnician'), type: 'error' });
+      return;
+    }
+    isProcessingCameraCodeRef.current = false;
+    setCameraOpen(true);
   };
 
   return (
-    <div>
-      <h1 className="page-title">{t('toolScanner')}</h1>
-
-      <div className="card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>{t('activeTechnician')}</h3>
-        <div className="form-group" style={{ maxWidth: '400px' }}>
-          <label className="form-label">{t('selectTechnician')}</label>
-          {error && <p style={{ color: 'var(--danger)', fontSize: '0.875rem' }}>{t('unableLoadTechnicians')}</p>}
-          <select 
-            className="form-input"
-            value={selectedTech} 
-            onChange={(e) => setSelectedTech(e.target.value)}
-          >
-            <option value="">{t('selectTechnicianOption')}</option>
-            {technicians.map(tech => (
-              <option key={tech.id} value={tech.id}>{tech.name}</option>
-            ))}
-          </select>
-        </div>
+    <div className="scanner-page">
+      <div className="scanner-header">
+        <h1 className="page-title">{t('toolScanner')}</h1>
+        <p className="text-muted">{t('scannerMobileIntro')}</p>
       </div>
 
-      <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>{t('scanQrHardware')}</h3>
-        
-        {scanResult && (
-          <div style={{
-            padding: '1rem',
-            marginBottom: '1rem',
-            borderRadius: '6px',
-            backgroundColor: scanResult.type === 'success' ? '#d1fae5' : '#fee2e2',
-            color: scanResult.type === 'success' ? '#065f46' : '#991b1b',
-          }}>
-            <p style={{ fontWeight: 600, marginBottom: scanResult.tool ? '0.5rem' : 0 }}>
-              {scanResult.text}
-            </p>
-            {scanResult.tool && (
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', fontSize: '0.875rem', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
-                {scanResult.tool.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- Tool photos may be local data URLs.
-                  <img src={scanResult.tool.image} alt={scanResult.tool.name} style={{ width: '160px', height: '160px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
-                ) : (
-                  <div style={{ width: '60px', height: '60px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, textAlign: 'center', fontSize: '10px' }}>{t('noImage')}</div>
-                )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                    <span><strong>{t('tool')}:</strong> {scanResult.tool.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span><strong>{t('newStatus')}:</strong> {scanResult.tool.status}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      <section className="card scanner-technician-card">
+        <h3>{t('activeTechnician')}</h3>
+        <div className="form-group scanner-technician-field">
+          <label className="form-label" htmlFor="technician-select">{t('selectTechnician')}</label>
+          {techniciansError && <p className="form-error">{t('unableLoadTechnicians')}</p>}
+          <select id="technician-select" className="form-input" value={selectedTech} onChange={(event) => setSelectedTech(event.target.value)} disabled={cameraOpen}>
+            <option value="">{t('selectTechnicianOption')}</option>
+            {technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}
+          </select>
+        </div>
+      </section>
 
-        <form onSubmit={handleScanSubmit} style={{ maxWidth: '400px' }}>
-          <div className="form-group">
-            <label className="form-label">{t('scannerInput')}</label>
-            <input 
-              ref={inputRef}
-              type="text" 
-              className="form-input" 
-              placeholder={t('scanBarcode')}
-              autoFocus
-            />
+      {scanResult && (
+        <section className={`scan-result scan-result-${scanResult.type}`} aria-live="polite">
+          <p className="scan-result-message">{scanResult.text}</p>
+          {scanResult.tool && (
+            <div className="scan-result-tool">
+              {scanResult.tool.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Tool photos may be local data URLs.
+                <img src={scanResult.tool.image} alt={scanResult.tool.name} className="scan-result-image" />
+              ) : <div className="scan-result-image scan-result-no-image">{t('noImage')}</div>}
+              <div><p><strong>{t('tool')}:</strong> {scanResult.tool.name}</p><p><strong>{t('newStatus')}:</strong> {scanResult.tool.status}</p></div>
+            </div>
+          )}
+        </section>
+      )}
+
+      <div className="scanner-layout">
+        <section className="card scanner-panel scanner-camera-card">
+          <div className="scanner-panel-heading">
+            <div className="scanner-panel-title"><Camera size={20} aria-hidden="true" /><h3>{t('cameraScanner')}</h3></div>
+            {cameraOpen && <button type="button" onClick={() => void stopCamera()} className="btn btn-outline scanner-close-camera"><X size={16} aria-hidden="true" /> {t('closeCamera')}</button>}
           </div>
-          <button type="submit" className="btn btn-primary" style={{ display: 'none' }}>
-            {t('processScan')}
-          </button>
-        </form>
-        <p className="text-muted" style={{ fontSize: '0.875rem', marginTop: '1rem' }}>
-          {t('scanInstructions')}
-        </p>
+          {cameraOpen ? (
+            <div><div id="camera-reader" className="camera-reader" aria-label={t('cameraScanner')} /><p className="camera-helper text-muted">{cameraStarting ? t('startingCamera') : t('pointCameraAtQr')}</p></div>
+          ) : (
+            <div className="camera-empty-state">
+              <Camera size={32} aria-hidden="true" />
+              <p>{t('cameraReadyDescription')}</p>
+              <button type="button" onClick={openCamera} className="btn btn-primary"><Camera size={18} aria-hidden="true" /> {t('openCamera')}</button>
+              {cameraError && <p className="form-error">{cameraError}</p>}
+            </div>
+          )}
+        </section>
+
+        <section className="card scanner-panel scanner-hardware-card">
+          <div className="scanner-panel-heading"><div className="scanner-panel-title"><Keyboard size={20} aria-hidden="true" /><h3>{t('scanQrHardware')}</h3></div></div>
+          <p className="text-muted scanner-panel-description">{t('scanInstructions')}</p>
+          <form onSubmit={handleHardwareSubmit} className="hardware-scan-form">
+            <div className="form-group"><label className="form-label" htmlFor="hardware-scan-input">{t('scannerInput')}</label><input id="hardware-scan-input" ref={inputRef} type="text" className="form-input" placeholder={t('scanBarcode')} enterKeyHint="done" /></div>
+            <button type="submit" className="btn btn-primary">{t('processScan')}</button>
+          </form>
+        </section>
       </div>
     </div>
   );

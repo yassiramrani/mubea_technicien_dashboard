@@ -86,6 +86,15 @@
   "activityToday": "Activity Today",
   "totalMovements": "Total Movements",
   "materialName": "Material Name",
+  "scannerMobileIntro": "Choose a technician, then scan with your phone camera or a hardware reader.",
+  "cameraScanner": "Camera scanner",
+  "openCamera": "Open camera",
+  "closeCamera": "Close camera",
+  "startingCamera": "Starting camera…",
+  "pointCameraAtQr": "Point the camera at the QR label to scan it.",
+  "cameraReadyDescription": "Use your phone camera to scan a tool label without a separate scanner.",
+  "cameraUnavailable": "We could not access the camera. Check camera permission and open this page over HTTPS.",
+  "scanProcessed": "Scan processed successfully.",
   "overdue": "Overdue",
   "checkedOut": "Checked out"
 }

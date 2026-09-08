@@ -16,22 +16,22 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div>
+      <div className="sidebar-brand">
         <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Mubea</h2>
         <p className="text-muted" style={{ fontSize: '0.875rem' }}>{t('toolManagement')}</p>
       </div>
       <button
         type="button"
         onClick={() => setLang(lang === 'en' ? 'fr' : 'en')}
-        className="btn btn-primary"
+        className="btn btn-primary sidebar-language"
         style={{ justifyContent: 'center' }}
         aria-label={t('switchLang')}
       >
         <Languages size={18} /> {t('switchLang')}
       </button>
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <nav className="sidebar-nav">
         {links.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="btn btn-outline" style={{ justifyContent: 'flex-start' }}>
+          <Link key={href} href={href} className="btn btn-outline sidebar-link">
             <Icon size={18} /> {label}
           </Link>
         ))}

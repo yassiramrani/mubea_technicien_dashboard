@@ -41,6 +41,14 @@ button {
   background: none;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgb(0 85 164 / 0.28);
+  outline-offset: 2px;
+}
+
 input, select {
   font-family: inherit;
 }
@@ -59,6 +67,16 @@ input, select {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar-link {
+  justify-content: flex-start;
 }
 
 .main-content {
@@ -137,6 +155,17 @@ input, select {
 
 .form-input:focus {
   border-color: var(--primary);
+}
+
+.form-input:disabled {
+  background-color: #f1f5f9;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.form-error {
+  color: #b91c1c;
+  font-size: 0.875rem;
 }
 
 /* Typography */
@@ -219,6 +248,35 @@ h1, h2, h3 {
   background-color: #fff7ed;
 }
 
+/* Scanner */
+.scanner-page { max-width: 960px; }
+.scanner-header { margin-bottom: 1.5rem; }
+.scanner-header .page-title { margin-bottom: 0.35rem; }
+.scanner-technician-card { margin-bottom: 1.5rem; }
+.scanner-technician-card h3 { margin-bottom: 1rem; }
+.scanner-technician-field { max-width: 440px; margin-bottom: 0; }
+.scanner-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 1.5rem; }
+.scanner-panel { min-width: 0; }
+.scanner-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.scanner-panel-title { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--primary); }
+.scanner-panel-title h3 { color: var(--text-main); }
+.scanner-close-camera { padding: 0.4rem 0.65rem; }
+.camera-reader { min-height: 300px; overflow: hidden; border-radius: 12px; background: #0f172a; }
+.camera-reader video { width: 100% !important; height: 100% !important; min-height: 300px; object-fit: cover; }
+.camera-helper, .scanner-panel-description { margin-top: 0.85rem; font-size: 0.875rem; }
+.scanner-panel-description { margin-top: -0.25rem; margin-bottom: 1rem; }
+.camera-empty-state { display: grid; min-height: 300px; place-items: center; align-content: center; gap: 1rem; padding: 1.5rem; border: 1px dashed #bfdbfe; border-radius: 12px; color: var(--text-muted); text-align: center; }
+.camera-empty-state > svg { color: var(--primary); }
+.hardware-scan-form { max-width: 360px; }
+.scan-result { margin-bottom: 1.5rem; padding: 1rem; border-radius: 12px; }
+.scan-result-success { background-color: #d1fae5; color: #065f46; }
+.scan-result-error { background-color: #fee2e2; color: #991b1b; }
+.scan-result-message { font-weight: 600; }
+.scan-result-tool { display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem; padding: 0.75rem; border-radius: 8px; background-color: rgb(255 255 255 / 0.55); font-size: 0.875rem; }
+.scan-result-tool p + p { margin-top: 0.35rem; }
+.scan-result-image { width: 72px; height: 72px; flex-shrink: 0; border-radius: 8px; object-fit: cover; }
+.scan-result-no-image { display: grid; place-items: center; background-color: rgb(15 23 42 / 0.1); color: var(--text-muted); font-size: 0.75rem; }
+
 /* Scanner overlay */
 #reader {
   width: 100%;
@@ -282,6 +340,27 @@ h1, h2, h3 {
   .overview-columns {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 720px) {
+  .app-container { display: block; }
+  .sidebar { position: sticky; top: 0; z-index: 10; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem; padding: 0.75rem 1rem; border-right: 0; border-bottom: 1px solid var(--border-color); }
+  .sidebar-brand { align-self: center; }
+  .sidebar-brand h2 { margin-bottom: 0 !important; font-size: 1.25rem; }
+  .sidebar-brand p { display: none; }
+  .sidebar-language { padding: 0.45rem 0.7rem; }
+  .sidebar-nav { grid-column: 1 / -1; flex-direction: row; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.1rem; scrollbar-width: none; }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+  .sidebar-link { flex: 0 0 auto; justify-content: center; padding: 0.45rem 0.7rem; }
+  .main-content { width: 100%; padding: 1rem; }
+  .page-title { font-size: 1.35rem; }
+  .card { padding: 1rem; }
+  .scanner-layout { grid-template-columns: 1fr; gap: 1rem; }
+  .camera-reader, .camera-reader video, .camera-empty-state { min-height: 270px; }
+  .camera-reader { border-radius: 10px; }
+  .scan-result-tool { align-items: flex-start; }
+  .hardware-scan-form { max-width: none; }
+  .hardware-scan-form .btn { width: 100%; }
 }
 
 /* Activity Feed */

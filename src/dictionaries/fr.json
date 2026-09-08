@@ -86,6 +86,15 @@
   "activityToday": "Activite du jour",
   "totalMovements": "Total des mouvements",
   "materialName": "Nom du materiel",
+  "scannerMobileIntro": "Choisissez un technicien, puis scannez avec l'appareil photo du téléphone ou un lecteur matériel.",
+  "cameraScanner": "Scanner par appareil photo",
+  "openCamera": "Ouvrir l'appareil photo",
+  "closeCamera": "Fermer l'appareil photo",
+  "startingCamera": "Démarrage de l'appareil photo…",
+  "pointCameraAtQr": "Pointez l'appareil photo vers l'étiquette QR pour la scanner.",
+  "cameraReadyDescription": "Utilisez l'appareil photo du téléphone pour scanner une étiquette sans lecteur séparé.",
+  "cameraUnavailable": "Impossible d'accéder à l'appareil photo. Vérifiez l'autorisation de la caméra et ouvrez cette page en HTTPS.",
+  "scanProcessed": "Scan traité avec succès.",
   "overdue": "En retard",
   "checkedOut": "Sorti le"
 }
