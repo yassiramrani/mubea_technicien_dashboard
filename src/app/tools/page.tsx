@@ -22,6 +22,7 @@ type Tool = {
   technician: { name: string } | null;
   checkedOutAt: string | null;
   isOverdue: boolean;
+  usageCount: number;
   labelPrinted: boolean;
   labelPrintedAt: string | null;
 };
@@ -61,6 +62,8 @@ export default function ToolsPage() {
   const [reprintAll, setReprintAll] = useState(false);
   const [labelBusy, setLabelBusy] = useState(false);
   const [labelMessage, setLabelMessage] = useState<string | null>(null);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [inventoryMessage, setInventoryMessage] = useState<string | null>(null);
   const [scanValue, setScanValue] = useState('');
   const [scannedCount, setScannedCount] = useState(0);
   const [reconcileCameraOpen, setReconcileCameraOpen] = useState(false);
@@ -94,6 +97,8 @@ export default function ToolsPage() {
 
   const printedCount = useMemo(() => tools.filter((tool) => tool.labelPrinted).length, [tools]);
   const unprintedTools = useMemo(() => tools.filter((tool) => !tool.labelPrinted), [tools]);
+  // "Unused" means never scanned since the tool was added (no history at all).
+  const unusedTools = useMemo(() => tools.filter((tool) => tool.usageCount === 0), [tools]);
   const selectedTools = useMemo(() => tools.filter((tool) => selectedIds.has(tool.id)), [tools, selectedIds]);
   const allSelected = tools.length > 0 && selectedIds.size === tools.length;
 
@@ -108,6 +113,50 @@ export default function ToolsPage() {
 
   const toggleSelectAll = () => {
     setSelectedIds(allSelected ? new Set() : new Set(tools.map((tool) => tool.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // Assigned tools are left out: they must be returned before they can be removed.
+  const selectUnusedTools = () => {
+    setSelectedIds(new Set(unusedTools.filter((tool) => tool.status !== 'ASSIGNED').map((tool) => tool.id)));
+  };
+
+  const handleBulkDeleteSelected = async () => {
+    const deletable = selectedTools.filter((tool) => tool.status !== 'ASSIGNED');
+    const assignedCount = selectedTools.length - deletable.length;
+
+    if (deletable.length === 0) {
+      setInventoryMessage(t('deleteSelectedNone'));
+      return;
+    }
+
+    if (!confirm(t('deleteSelectedConfirm').replace('{count}', String(deletable.length)))) return;
+
+    setCleanupBusy(true);
+    setInventoryMessage(null);
+
+    try {
+      const query = deletable.map((tool) => tool.id).join(',');
+      const res = await fetch(`/api/tools?ids=${encodeURIComponent(query)}`, { method: 'DELETE' });
+      const data = (await res.json()) as { deleted?: number; skipped?: number; error?: string };
+
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete tools');
+
+      setSelectedIds(new Set());
+      await fetchTools();
+
+      const parts = [t('deleteSelectedDone').replace('{count}', String(data.deleted ?? 0))];
+      if (assignedCount > 0) {
+        parts.push(t('deleteSelectedSkipped').replace('{count}', String(assignedCount)));
+      }
+      setInventoryMessage(parts.join(' '));
+    } catch (error) {
+      console.error(error);
+      setInventoryMessage(t('deleteSelectedFailed'));
+    } finally {
+      setCleanupBusy(false);
+    }
   };
 
   const markLabelState = async (ids: string[], labelPrinted: boolean) => {
@@ -736,7 +785,42 @@ export default function ToolsPage() {
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>{t('toolsInventory')}</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div>
+            <h3 style={{ marginBottom: '0.25rem' }}>{t('toolsInventory')}</h3>
+            <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
+              {t('unusedToolsSummary').replace('{count}', String(unusedTools.length))}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={selectUnusedTools}
+              className="btn btn-outline"
+              disabled={unusedTools.length === 0}
+            >
+              {t('selectUnused').replace('{count}', String(unusedTools.length))}
+            </button>
+            <button
+              onClick={clearSelection}
+              className="btn btn-outline"
+              disabled={selectedIds.size === 0}
+            >
+              {t('clearSelection')}
+            </button>
+            <button
+              onClick={handleBulkDeleteSelected}
+              className="btn btn-outline"
+              style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+              disabled={cleanupBusy || selectedTools.length === 0}
+            >
+              <Trash2 size={14} style={{ marginRight: '0.35rem' }} />
+              {t('deleteSelected').replace('{count}', String(selectedTools.length))}
+            </button>
+          </div>
+        </div>
+        {inventoryMessage && (
+          <p style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>{inventoryMessage}</p>
+        )}
         {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{t('unableLoadTools')}</p>}
         {loading ? (
           <p>{t('loading')}</p>
@@ -755,6 +839,7 @@ export default function ToolsPage() {
                 <th>{t('image')}</th>
                 <th>{t('name')}</th>
                 <th>{t('labelStatus')}</th>
+                <th>{t('uses')}</th>
                 <th>{t('status')}</th>
                 <th>{t('assignedTo')}</th>
                 <th>{t('action')}</th>
@@ -854,6 +939,8 @@ export default function ToolsPage() {
                     </div>
                   </td>
 
+                  <td>{tool.usageCount}</td>
+
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
@@ -904,7 +991,7 @@ export default function ToolsPage() {
               ))}
               {tools.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center' }}>{t('noTools')}</td>
+                  <td colSpan={8} style={{ textAlign: 'center' }}>{t('noTools')}</td>
                 </tr>
               )}
             </tbody>

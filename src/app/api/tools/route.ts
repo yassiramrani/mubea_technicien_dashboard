@@ -16,14 +16,17 @@ export async function GET() {
           take: 1,
           select: { createdAt: true },
         },
+        // Total scans recorded for the tool, across both TAKEN and RETURNED.
+        // A count of zero means the tool was never used since it was added.
+        _count: { select: { logs: true } },
       },
     });
 
-    return NextResponse.json(tools.map(({ logs, ...tool }) => {
+    return NextResponse.json(tools.map(({ logs, _count, ...tool }) => {
       const checkedOutAt = logs[0]?.createdAt ?? null;
       const isOverdue = tool.status === 'ASSIGNED' && checkedOutAt !== null && checkedOutAt < today;
 
-      return { ...tool, checkedOutAt, isOverdue };
+      return { ...tool, checkedOutAt, isOverdue, usageCount: _count.logs };
     }));
   } catch {
     return NextResponse.json({ error: 'Failed to fetch tools' }, { status: 500 });
@@ -120,6 +123,48 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const scope = searchParams.get('scope');
+    const idsParam = searchParams.get('ids');
+
+    // Bulk cleanup. `scope=unused` lets the server decide what "never used"
+    // means so the client cannot accidentally widen the blast radius; `ids`
+    // deletes an explicit, user-reviewed selection.
+    if (scope === 'unused' || idsParam) {
+      let candidateIds: string[];
+
+      if (scope === 'unused') {
+        const unused = await prisma.tool.findMany({
+          where: { status: { not: 'ASSIGNED' }, logs: { none: {} } },
+          select: { id: true },
+        });
+        candidateIds = unused.map((tool) => tool.id);
+      } else {
+        candidateIds = idsParam!.split(',').map((value) => value.trim()).filter(Boolean);
+      }
+
+      if (candidateIds.length === 0) {
+        return NextResponse.json({ success: true, deleted: 0, skipped: 0 });
+      }
+
+      // A tool currently assigned to a technician is never deleted.
+      const matching = await prisma.tool.findMany({
+        where: { id: { in: candidateIds } },
+        select: { id: true, status: true },
+      });
+      const deletableIds = matching
+        .filter((tool) => tool.status !== 'ASSIGNED')
+        .map((tool) => tool.id);
+      const skipped = matching.length - deletableIds.length;
+      const missing = candidateIds.length - matching.length;
+
+      if (deletableIds.length > 0) {
+        await prisma.log.deleteMany({ where: { toolId: { in: deletableIds } } });
+        await prisma.tool.deleteMany({ where: { id: { in: deletableIds } } });
+      }
+
+      return NextResponse.json({ success: true, deleted: deletableIds.length, skipped, missing });
+    }
+
     const id = searchParams.get('id');
 
     if (!id) {
