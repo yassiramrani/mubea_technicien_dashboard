@@ -87,6 +87,36 @@ export async function PUT(req: Request) {
   }
 }
 
+// Bulk-update the label print state. Used by the tools page to mark labels as
+// printed after a batch run, and to flag a bad print for reprinting.
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { ids, labelPrinted } = body as { ids?: string[]; labelPrinted?: boolean };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'At least one tool ID is required' }, { status: 400 });
+    }
+
+    if (typeof labelPrinted !== 'boolean') {
+      return NextResponse.json({ error: 'labelPrinted must be a boolean' }, { status: 400 });
+    }
+
+    const result = await prisma.tool.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        labelPrinted,
+        labelPrintedAt: labelPrinted ? new Date() : null,
+      },
+    });
+
+    return NextResponse.json({ success: true, updated: result.count });
+  } catch (error) {
+    console.error('Error updating label state:', error);
+    return NextResponse.json({ error: 'Failed to update label state' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { AlertTriangle, Trash2, Edit2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { AlertTriangle, Trash2, Edit2, CheckCircle2, Printer, RotateCcw } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
@@ -17,6 +17,8 @@ type Tool = {
   technician: { name: string } | null;
   checkedOutAt: string | null;
   isOverdue: boolean;
+  labelPrinted: boolean;
+  labelPrintedAt: string | null;
 };
 
 export function PrintQRCode({ value }: { value: string }) {
@@ -48,6 +50,15 @@ export default function ToolsPage() {
   const [editingToolId, setEditingToolId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
 
+  // Label printing state. The app must remember which labels were already
+  // printed, otherwise a partial or bad print run can never be resumed.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [reprintAll, setReprintAll] = useState(false);
+  const [labelBusy, setLabelBusy] = useState(false);
+  const [labelMessage, setLabelMessage] = useState<string | null>(null);
+  const [scanValue, setScanValue] = useState('');
+  const reconcileScanRef = useRef<HTMLInputElement>(null);
+
   const fetchTools = useCallback(async () => {
     try {
       const res = await fetch('/api/tools');
@@ -67,6 +78,42 @@ export default function ToolsPage() {
     const timer = window.setTimeout(() => void fetchTools(), 0);
     return () => window.clearTimeout(timer);
   }, [fetchTools]);
+
+  const printedCount = useMemo(() => tools.filter((tool) => tool.labelPrinted).length, [tools]);
+  const unprintedTools = useMemo(() => tools.filter((tool) => !tool.labelPrinted), [tools]);
+  const selectedTools = useMemo(() => tools.filter((tool) => selectedIds.has(tool.id)), [tools, selectedIds]);
+  const allSelected = tools.length > 0 && selectedIds.size === tools.length;
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(tools.map((tool) => tool.id)));
+  };
+
+  const markLabelState = async (ids: string[], labelPrinted: boolean) => {
+    if (ids.length === 0) return true;
+    try {
+      const res = await fetch('/api/tools', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, labelPrinted }),
+      });
+      if (!res.ok) throw new Error('Failed to update label state');
+      await fetchTools();
+      return true;
+    } catch (error) {
+      console.error(error);
+      setLabelMessage(t('labelUpdateFailed'));
+      return false;
+    }
+  };
 
   // Dynamically generate a QR Code Data URL for the PDF
   const addQrCodeLabel = async (doc: jsPDF, tool: Tool, x = 0, y = 0) => {
@@ -88,63 +135,112 @@ export default function ToolsPage() {
     }
   };
 
-  const handleDownloadThermalBarcodes = async () => {
-    if (tools.length === 0) return;
-    try {
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: [40, 20], // Adjusted format to match your true label stock
-      });
+  /**
+   * Generates a PDF for the given tools and marks their labels as printed once
+   * the file has been produced. Passing only the tools that still need a label
+   * is what makes a partial or failed print run resumable.
+   */
+  const printLabels = async (list: Tool[], layout: 'thermal' | 'sheet') => {
+    if (list.length === 0) return;
 
-      for (let i = 0; i < tools.length; i++) {
-        await addQrCodeLabel(doc, tools[i]);
-        
-        if (i < tools.length - 1) {
-          doc.addPage([40, 20], 'landscape');
+    setLabelBusy(true);
+    setLabelMessage(null);
+
+    try {
+      if (layout === 'thermal') {
+        const doc = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: [40, 20], // Adjusted format to match your true label stock
+        });
+
+        for (let i = 0; i < list.length; i++) {
+          await addQrCodeLabel(doc, list[i]);
+
+          if (i < list.length - 1) {
+            doc.addPage([40, 20], 'landscape');
+          }
         }
+
+        doc.save(`QR_labels_${list.length}_thermal_40x20mm.pdf`);
+      } else {
+        const doc = new jsPDF();
+        const PAGE_LEFT_MARGIN = 17;
+        const PAGE_TOP_MARGIN = 16;
+        const LABEL_WIDTH = 40;
+        const LABEL_HEIGHT = 20;
+        const COLS = 4;
+
+        let currentY = PAGE_TOP_MARGIN;
+        let colIndex = 0;
+
+        for (let i = 0; i < list.length; i++) {
+          await addQrCodeLabel(doc, list[i], PAGE_LEFT_MARGIN + (colIndex * LABEL_WIDTH), currentY);
+          colIndex++;
+
+          if (colIndex >= COLS) {
+            colIndex = 0;
+            currentY += LABEL_HEIGHT;
+
+            if (currentY + LABEL_HEIGHT > 280) {
+              doc.addPage();
+              currentY = PAGE_TOP_MARGIN;
+            }
+          }
+        }
+
+        doc.save(`QR_labels_${list.length}_sheet_A4.pdf`);
       }
 
-      doc.save('QR_40x20mm.pdf');
+      await markLabelState(list.map((tool) => tool.id), true);
+      setLabelMessage(t('labelsPrintedCount').replace('{count}', String(list.length)));
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF');
+      setLabelMessage(t('labelGenerateFailed'));
+    } finally {
+      setLabelBusy(false);
     }
   };
 
-  const handleDownloadAllBarcodes = async () => {
-    if (tools.length === 0) return;
-    try {
-      const doc = new jsPDF();
-      const PAGE_LEFT_MARGIN = 17;
-      const PAGE_TOP_MARGIN = 16;
-      const LABEL_WIDTH = 40;
-      const LABEL_HEIGHT = 20;
-      const COLS = 4;
+  // Tools that still need a label, unless the user explicitly asks for a full reprint.
+  const handlePrintPendingLabels = (layout: 'thermal' | 'sheet') => {
+    const list = reprintAll ? tools : unprintedTools;
+    void printLabels(list, layout);
+  };
 
-      let currentY = PAGE_TOP_MARGIN;
-      let colIndex = 0;
+  const handlePrintSelectedLabels = (layout: 'thermal' | 'sheet') => {
+    void printLabels(selectedTools, layout);
+  };
 
-      for (let i = 0; i < tools.length; i++) {
-        await addQrCodeLabel(doc, tools[i], PAGE_LEFT_MARGIN + (colIndex * LABEL_WIDTH), currentY);
-        colIndex++;
+  /**
+   * Reconcile mode: scan a physical label that is already on a tool and the app
+   * marks that tool's label as printed. This is how an existing, unordered print
+   * run can be recovered without reprinting or re-identifying anything.
+   */
+  const handleReconcileScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = scanValue.trim().toUpperCase();
+    if (!code) return;
 
-        if (colIndex >= COLS) {
-          colIndex = 0;
-          currentY += LABEL_HEIGHT;
+    setScanValue('');
 
-          if (currentY + LABEL_HEIGHT > 280) {
-            doc.addPage();
-            currentY = PAGE_TOP_MARGIN;
-          }
-        }
-      }
+    const match = tools.find((tool) => tool.qrCode.toUpperCase() === code);
 
-      doc.save('All_Tools_QR_Labels_A4.pdf');
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF');
+    if (!match) {
+      setLabelMessage(t('reconcileNotFound').replace('{code}', code));
+      reconcileScanRef.current?.focus();
+      return;
     }
+
+    if (match.labelPrinted) {
+      setLabelMessage(t('reconcileAlreadyPrinted').replace('{name}', match.name));
+      reconcileScanRef.current?.focus();
+      return;
+    }
+
+    await markLabelState([match.id], true);
+    setLabelMessage(t('reconcileMarked').replace('{name}', match.name).replace('{code}', match.qrCode));
+    reconcileScanRef.current?.focus();
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -329,6 +425,7 @@ export default function ToolsPage() {
       QRCode: t.qrCode,
       Status: t.status,
       AssignedTo: t.technician ? t.technician.name : 'None',
+      LabelPrinted: t.labelPrinted ? 'Yes' : 'No',
     }));
     exportToExcel(data, 'Mubea_Tools');
   };
@@ -389,16 +486,78 @@ export default function ToolsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Tools Management</h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={handleDownloadAllBarcodes} className="btn btn-outline" disabled={tools.length === 0}>
-            {t('downloadBarcodeSheet')}
-          </button>
           <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
             {t('exportExcel')}
           </button>
-            <button onClick={handleDownloadThermalBarcodes} className="btn btn-outline" disabled={tools.length === 0}>
-              {t('downloadThermalBarcodes')}
-            </button>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <h3 style={{ marginBottom: '0.5rem' }}>{t('labelPrinting')}</h3>
+        <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
+          {t('labelsPrintedSummary')
+            .replace('{printed}', String(printedCount))
+            .replace('{total}', String(tools.length))}
+        </p>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
+          <input
+            type="checkbox"
+            checked={reprintAll}
+            onChange={(e) => setReprintAll(e.target.checked)}
+          />
+          {t('reprintAllLabels')}
+        </label>
+
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => handlePrintPendingLabels('thermal')}
+            className="btn btn-primary"
+            disabled={labelBusy || (reprintAll ? tools.length === 0 : unprintedTools.length === 0)}
+          >
+            <Printer size={14} style={{ marginRight: '0.35rem' }} />
+            {t('printPendingThermal').replace('{count}', String(reprintAll ? tools.length : unprintedTools.length))}
+          </button>
+          <button
+            onClick={() => handlePrintPendingLabels('sheet')}
+            className="btn btn-outline"
+            disabled={labelBusy || (reprintAll ? tools.length === 0 : unprintedTools.length === 0)}
+          >
+            {t('printPendingSheet').replace('{count}', String(reprintAll ? tools.length : unprintedTools.length))}
+          </button>
+          <button
+            onClick={() => handlePrintSelectedLabels('thermal')}
+            className="btn btn-outline"
+            disabled={labelBusy || selectedTools.length === 0}
+          >
+            {t('printSelected').replace('{count}', String(selectedTools.length))}
+          </button>
+        </div>
+
+        <form onSubmit={handleReconcileScan} style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: '1rem' }}>
+          <label className="form-label" htmlFor="reconcile-scan">{t('reconcileTitle')}</label>
+          <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>{t('reconcileHint')}</p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              id="reconcile-scan"
+              ref={reconcileScanRef}
+              type="text"
+              className="form-input"
+              value={scanValue}
+              onChange={(e) => setScanValue(e.target.value)}
+              placeholder={t('reconcilePlaceholder')}
+              autoComplete="off"
+              style={{ maxWidth: '260px' }}
+            />
+            <button type="submit" className="btn btn-outline" disabled={!scanValue.trim()}>
+              {t('reconcileMark')}
+            </button>
+          </div>
+        </form>
+
+        {labelMessage && (
+          <p style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>{labelMessage}</p>
+        )}
       </div>
       
       <div className="card" style={{ marginBottom: '2rem' }}>
@@ -440,8 +599,17 @@ export default function ToolsPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: '32px' }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label={t('selectAll')}
+                  />
+                </th>
                 <th>{t('image')}</th>
                 <th>{t('name')}</th>
+                <th>{t('labelStatus')}</th>
                 <th>{t('status')}</th>
                 <th>{t('assignedTo')}</th>
                 <th>{t('action')}</th>
@@ -450,6 +618,14 @@ export default function ToolsPage() {
             <tbody>
               {tools.map((tool) => (
                 <tr key={tool.id} className={tool.isOverdue ? 'tool-overdue-row' : undefined}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(tool.id)}
+                      onChange={() => toggleSelected(tool.id)}
+                      aria-label={`${t('select')} ${tool.name}`}
+                    />
+                  </td>
                   <td>
                     <div 
                       onClick={() => handleUpdateImageClick(tool.id)}
@@ -515,6 +691,26 @@ export default function ToolsPage() {
 
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {tool.labelPrinted ? (
+                        <span className="badge badge-success" title={tool.labelPrintedAt ? formatCheckedOutAt(tool.labelPrintedAt) : undefined}>
+                          {t('labelPrinted')}
+                        </span>
+                      ) : (
+                        <span className="badge badge-warning">{t('labelToPrint')}</span>
+                      )}
+                      <button
+                        onClick={() => markLabelState([tool.id], !tool.labelPrinted)}
+                        className="btn btn-outline"
+                        style={{ padding: '0.2rem', border: 'none', color: '#64748b', background: 'transparent' }}
+                        title={tool.labelPrinted ? t('markLabelUnprinted') : t('markLabelPrinted')}
+                      >
+                        {tool.labelPrinted ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
+                      </button>
+                    </div>
+                  </td>
+
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
                         {tool.status}
                       </span>
@@ -563,7 +759,7 @@ export default function ToolsPage() {
               ))}
               {tools.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center' }}>{t('noTools')}</td>
+                  <td colSpan={7} style={{ textAlign: 'center' }}>{t('noTools')}</td>
                 </tr>
               )}
             </tbody>

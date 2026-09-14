@@ -26,6 +26,11 @@ model Tool {
   technicianId String?
   technician   Technician? @relation(fields: [technicianId], references: [id])
   logs         Log[]
+  // Label print tracking: lets the app know which labels were already printed
+  // (and successfully stuck on a tool) so a partial or bad print run can be
+  // resumed without re-printing — or re-identifying — the whole inventory.
+  labelPrinted Boolean     @default(false)
+  labelPrintedAt DateTime?
   createdAt    DateTime    @default(now())
 }
 
