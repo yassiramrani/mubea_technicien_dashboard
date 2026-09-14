@@ -1,12 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { AlertTriangle, Trash2, Edit2, CheckCircle2, Printer, RotateCcw } from 'lucide-react';
+import type { Html5Qrcode as Html5QrcodeInstance } from 'html5-qrcode';
+import { AlertTriangle, Trash2, Edit2, CheckCircle2, Printer, RotateCcw, Camera, X } from 'lucide-react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
 import QRCode from 'react-qr-code';
 import QRCodeLib from 'qrcode'; // Added for jsPDF generation
+
+// While a label stays in front of the camera the decoder fires the same code
+// several times per second, so repeats are ignored for this long.
+const RECONCILE_DEDUPE_MS = 4000;
 
 type Tool = {
   id: string;
@@ -57,7 +62,15 @@ export default function ToolsPage() {
   const [labelBusy, setLabelBusy] = useState(false);
   const [labelMessage, setLabelMessage] = useState<string | null>(null);
   const [scanValue, setScanValue] = useState('');
+  const [scannedCount, setScannedCount] = useState(0);
+  const [reconcileCameraOpen, setReconcileCameraOpen] = useState(false);
+  const [reconcileCameraStarting, setReconcileCameraStarting] = useState(false);
+  const [reconcileCameraError, setReconcileCameraError] = useState<string | null>(null);
   const reconcileScanRef = useRef<HTMLInputElement>(null);
+  const reconcileScannerRef = useRef<Html5QrcodeInstance | null>(null);
+  const toolsRef = useRef<Tool[]>([]);
+  const lastReconcileScanRef = useRef<{ code: string; at: number }>({ code: '', at: 0 });
+  const reconcileProcessorRef = useRef<(rawCode: string) => Promise<void>>(async () => undefined);
 
   const fetchTools = useCallback(async () => {
     try {
@@ -217,31 +230,136 @@ export default function ToolsPage() {
    * marks that tool's label as printed. This is how an existing, unordered print
    * run can be recovered without reprinting or re-identifying anything.
    */
-  const handleReconcileScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = scanValue.trim().toUpperCase();
+  const processReconcileCode = async (rawCode: string) => {
+    const code = rawCode.trim().toUpperCase();
     if (!code) return;
 
-    setScanValue('');
-
-    const match = tools.find((tool) => tool.qrCode.toUpperCase() === code);
+    const match = toolsRef.current.find((tool) => tool.qrCode.toUpperCase() === code);
 
     if (!match) {
       setLabelMessage(t('reconcileNotFound').replace('{code}', code));
-      reconcileScanRef.current?.focus();
       return;
     }
 
     if (match.labelPrinted) {
       setLabelMessage(t('reconcileAlreadyPrinted').replace('{name}', match.name));
-      reconcileScanRef.current?.focus();
       return;
     }
 
     await markLabelState([match.id], true);
+    setScannedCount((count) => count + 1);
     setLabelMessage(t('reconcileMarked').replace('{name}', match.name).replace('{code}', match.qrCode));
-    reconcileScanRef.current?.focus();
   };
+
+  const handleReconcileScan = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = scanValue.trim();
+    if (!code) return;
+    setScanValue('');
+    void processReconcileCode(code)
+      .catch(console.error)
+      .finally(() => reconcileScanRef.current?.focus());
+  };
+
+  const stopReconcileCamera = useCallback(async () => {
+    setReconcileCameraOpen(false);
+    const scanner = reconcileScannerRef.current;
+    reconcileScannerRef.current = null;
+    if (!scanner) return;
+
+    try {
+      if (scanner.isScanning) await scanner.stop();
+      scanner.clear();
+    } catch (error) {
+      console.error('Unable to release reconcile camera:', error);
+    }
+  }, []);
+
+  // Stable identity on purpose: the camera must keep running between scans
+  // instead of restarting every time the tool list is refreshed.
+  const handleReconcileCameraSuccess = useCallback((decodedText: string) => {
+    const code = decodedText.trim().toUpperCase();
+    if (!code) return;
+
+    const now = Date.now();
+    const previous = lastReconcileScanRef.current;
+    if (previous.code === code && now - previous.at < RECONCILE_DEDUPE_MS) return;
+    lastReconcileScanRef.current = { code, at: now };
+
+    void reconcileProcessorRef.current(decodedText);
+  }, []);
+
+  const openReconcileCamera = () => {
+    lastReconcileScanRef.current = { code: '', at: 0 };
+    setReconcileCameraError(null);
+    setReconcileCameraOpen(true);
+  };
+
+  // Keep the latest values reachable from the stable camera callbacks.
+  useEffect(() => {
+    toolsRef.current = tools;
+  }, [tools]);
+
+  useEffect(() => {
+    reconcileProcessorRef.current = processReconcileCode;
+  });
+
+  useEffect(() => {
+    if (!reconcileCameraOpen) return;
+
+    let cancelled = false;
+    const startCamera = async () => {
+      setReconcileCameraStarting(true);
+      setReconcileCameraError(null);
+
+      try {
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+        if (cancelled) return;
+
+        const scanner = new Html5Qrcode('reconcile-camera-reader', {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false,
+        });
+        reconcileScannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1 },
+          handleReconcileCameraSuccess,
+          () => undefined,
+        );
+
+        if (!cancelled) setReconcileCameraStarting(false);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Unable to start reconcile camera:', error);
+        setReconcileCameraError(t('cameraUnavailable'));
+        setReconcileCameraStarting(false);
+        setReconcileCameraOpen(false);
+      }
+    };
+
+    void startCamera();
+
+    return () => {
+      cancelled = true;
+      const scanner = reconcileScannerRef.current;
+      reconcileScannerRef.current = null;
+      if (!scanner) return;
+      void (async () => {
+        try {
+          if (scanner.isScanning) await scanner.stop();
+          scanner.clear();
+        } catch (error) {
+          console.error('Unable to release reconcile camera:', error);
+        }
+      })();
+    };
+  }, [reconcileCameraOpen, handleReconcileCameraSuccess, t]);
+
+  useEffect(() => () => {
+    void stopReconcileCamera();
+  }, [stopReconcileCamera]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -534,10 +652,11 @@ export default function ToolsPage() {
           </button>
         </div>
 
-        <form onSubmit={handleReconcileScan} style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: '1rem' }}>
+        <div style={{ marginTop: '1.25rem', borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: '1rem' }}>
           <label className="form-label" htmlFor="reconcile-scan">{t('reconcileTitle')}</label>
           <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>{t('reconcileHint')}</p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+
+          <form onSubmit={handleReconcileScan} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <input
               id="reconcile-scan"
               ref={reconcileScanRef}
@@ -552,8 +671,34 @@ export default function ToolsPage() {
             <button type="submit" className="btn btn-outline" disabled={!scanValue.trim()}>
               {t('reconcileMark')}
             </button>
-          </div>
-        </form>
+            {reconcileCameraOpen ? (
+              <button type="button" onClick={() => void stopReconcileCamera()} className="btn btn-outline">
+                <X size={16} aria-hidden="true" style={{ marginRight: '0.35rem' }} />
+                {t('closeCamera')}
+              </button>
+            ) : (
+              <button type="button" onClick={openReconcileCamera} className="btn btn-primary">
+                <Camera size={16} aria-hidden="true" style={{ marginRight: '0.35rem' }} />
+                {t('scanWithCamera')}
+              </button>
+            )}
+          </form>
+
+          {reconcileCameraOpen && (
+            <div style={{ marginTop: '0.75rem', maxWidth: '420px' }}>
+              <div id="reconcile-camera-reader" className="camera-reader" aria-label={t('cameraScanner')} />
+              <p className="camera-helper text-muted">
+                {reconcileCameraStarting ? t('startingCamera') : t('reconcileCameraHint')}
+              </p>
+              {scannedCount > 0 && (
+                <p style={{ fontSize: '0.85rem' }}>
+                  {t('reconcileScannedCount').replace('{count}', String(scannedCount))}
+                </p>
+              )}
+              {reconcileCameraError && <p className="form-error">{reconcileCameraError}</p>}
+            </div>
+          )}
+        </div>
 
         {labelMessage && (
           <p style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>{labelMessage}</p>
