@@ -8,6 +8,7 @@ import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
 import QRCode from 'react-qr-code';
 import QRCodeLib from 'qrcode'; // Added for jsPDF generation
+import ParetoCard from './ParetoCard';
 
 // While a label stays in front of the camera the decoder fires the same code
 // several times per second, so repeats are ignored for this long.
@@ -783,6 +784,8 @@ export default function ToolsPage() {
           </button>
         </form>
       </div>
+
+      <ParetoCard tools={tools} loading={loading} />
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>

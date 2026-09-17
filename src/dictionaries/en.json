@@ -132,5 +132,16 @@
   "cameraUnavailable": "We could not access the camera. Check camera permission and open this page over HTTPS.",
   "scanProcessed": "Scan processed successfully.",
   "overdue": "Overdue",
-  "checkedOut": "Checked out"
+  "checkedOut": "Checked out",
+  "brandTitle": "Mubea Tools",
+  "brandSubtitle": "Inventory Control System",
+  "paretoTitle": "Pareto Analysis - Tool Usage",
+  "paretoSubtitle": "Tools ranked by number of recorded scans (80/20 rule). The line shows the cumulative share of activity.",
+  "paretoShowTop": "Bars shown",
+  "paretoTopN": "Top {count}",
+  "paretoAllTools": "All tools",
+  "paretoOthers": "Other tools ({count})",
+  "paretoCumulative": "Cumulative share",
+  "paretoVitalFew": "{count} tool(s) cover 80% of all recorded uses ({percent}% of the inventory).",
+  "paretoNoData": "No tool has been scanned yet - the Pareto analysis will appear as soon as activity is recorded."
 }

@@ -17,8 +17,8 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Mubea</h2>
-        <p className="text-muted" style={{ fontSize: '0.875rem' }}>{t('toolManagement')}</p>
+        <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>{t('brandTitle')}</h2>
+        <p className="text-muted" style={{ fontSize: '0.875rem' }}>{t('brandSubtitle')}</p>
       </div>
       <button
         type="button"

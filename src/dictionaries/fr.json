@@ -132,5 +132,16 @@
   "cameraUnavailable": "Impossible d'accéder à l'appareil photo. Vérifiez l'autorisation de la caméra et ouvrez cette page en HTTPS.",
   "scanProcessed": "Scan traité avec succès.",
   "overdue": "En retard",
-  "checkedOut": "Sorti le"
+  "checkedOut": "Sorti le",
+  "brandTitle": "Mubea Tools",
+  "brandSubtitle": "Inventory Control System",
+  "paretoTitle": "Analyse de Pareto - Utilisation des outils",
+  "paretoSubtitle": "Outils classés par nombre de scans enregistrés (règle des 80/20). La courbe indique la part cumulée de l'activité.",
+  "paretoShowTop": "Barres affichées",
+  "paretoTopN": "Top {count}",
+  "paretoAllTools": "Tous les outils",
+  "paretoOthers": "Autres outils ({count})",
+  "paretoCumulative": "Part cumulée",
+  "paretoVitalFew": "{count} outil(s) couvrent 80 % des utilisations enregistrées ({percent} % de l'inventaire).",
+  "paretoNoData": "Aucun outil n'a encore été scanné - l'analyse de Pareto apparaîtra dès que l'activité sera enregistrée."
 }

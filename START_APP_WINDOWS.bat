@@ -1,9 +1,9 @@
 @echo off
-title Mubea Dashboard
+title Mubea Tools Inventory Control System
 setlocal
 
 echo =========================================
-echo       Mubea Technician Dashboard
+echo   Mubea Tools Inventory Control System
 echo =========================================
 echo.
 

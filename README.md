@@ -1,6 +1,6 @@
-# mubea_technicien_dashboard
+# Mubea Tools Inventory Control System
 
-Technician dashboard built with Next.js, TypeScript, and Prisma.
+Tools inventory dashboard built with Next.js, TypeScript, and Prisma.
 
 The project is organized as a web application with QR-code tooling and a Vercel-ready deployment setup.
 

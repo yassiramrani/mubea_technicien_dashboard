@@ -4,8 +4,8 @@ import Providers from './Providers'
 import Sidebar from './Sidebar'
 
 export const metadata: Metadata = {
-  title: 'Mubea Technician Dashboard',
-  description: 'Manage technicians and tools',
+  title: 'Mubea Tools Inventory Control System',
+  description: 'Mubea tools inventory control: manage technicians, tools, labels and reports',
 }
 
 export default function RootLayout({

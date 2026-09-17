@@ -47,11 +47,11 @@ export default function LogsPage() {
     const doc = new jsPDF();
     
     doc.setFontSize(18);
-    doc.text('Mubea Technician Tools Log', 14, 22);
+    doc.text('Mubea Tools Inventory Control System', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Date: ${date}`, 14, 30);
+    doc.text(`Daily activity log - ${date}`, 14, 30);
 
     const tableColumn = ["Time", "Technician", "ID Number", "Tool", "Action"];
     const tableRows = logs.map(log => [
