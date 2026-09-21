@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Html5Qrcode as Html5QrcodeInstance } from 'html5-qrcode';
-import { Camera, Keyboard, X } from 'lucide-react';
+import { Camera, ImagePlus, Keyboard, Save, X } from 'lucide-react';
 import { useTranslation } from '@/lib/LanguageContext';
+import { compressImageFile } from '@/lib/imageUtils';
+import { isLabeler } from '@/lib/technicianRoles';
 
-type Technician = { id: string; name: string };
+type Technician = { id: string; name: string; role: string };
 
 type ScannedTool = {
   name: string;
@@ -17,6 +19,23 @@ type ScanResponse = {
   message?: string;
   error?: string;
   tool?: ScannedTool;
+};
+
+// Tool card returned by /api/tools/lookup for the identification profile.
+type IdentifiableTool = {
+  id: string;
+  qrCode: string;
+  name: string;
+  image: string | null;
+  status: string;
+  technicianName: string | null;
+  hasPlaceholderName: boolean;
+};
+
+type LookupResponse = {
+  error?: string;
+  tool?: IdentifiableTool;
+  stats?: { total: number; withoutPhoto: number };
 };
 
 function decodeAzerty(input: string): string {
@@ -38,9 +57,24 @@ export default function ScannerPage() {
   const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
+  // Identification profile state.
+  const [identifyTool, setIdentifyTool] = useState<IdentifiableTool | null>(null);
+  const [identifyName, setIdentifyName] = useState('');
+  const [identifyImage, setIdentifyImage] = useState<string | null>(null);
+  const [identifyBusy, setIdentifyBusy] = useState(false);
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
+  const [identifyCount, setIdentifyCount] = useState(0);
+  const [photoProgress, setPhotoProgress] = useState<{ total: number; withoutPhoto: number } | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const cameraScannerRef = useRef<Html5QrcodeInstance | null>(null);
   const isProcessingCameraCodeRef = useRef(false);
+
+  // The selected technician decides what a scan does: a standard technician takes
+  // or returns the tool, an identification profile renames it and adds its photo.
+  const selectedTechnician = technicians.find((technician) => technician.id === selectedTech);
+  const identifyMode = isLabeler(selectedTechnician?.role);
 
   const fetchTechnicians = useCallback(async () => {
     try {
@@ -85,6 +119,29 @@ export default function ScannerPage() {
     if (!decodedCode) return;
 
     try {
+      // Identification profile: read-only lookup that opens the tool card instead
+      // of assigning or returning the tool.
+      if (identifyMode) {
+        const res = await fetch(`/api/tools/lookup?qrCode=${encodeURIComponent(decodedCode)}`);
+        const data = await res.json() as LookupResponse;
+
+        if (res.ok && data.tool) {
+          setIdentifyTool(data.tool);
+          // Placeholder names (component-001…) are cleared so the real name can be
+          // typed straight away; existing names are kept for a small correction.
+          setIdentifyName(data.tool.hasPlaceholderName ? '' : data.tool.name);
+          setIdentifyImage(data.tool.image ?? null);
+          setIdentifyError(null);
+          if (data.stats) setPhotoProgress(data.stats);
+          setScanResult({ text: t('toolFound').replace('{code}', decodedCode), type: 'success' });
+        } else {
+          setIdentifyTool(null);
+          setIdentifyError(null);
+          setScanResult({ text: `${data.error ?? t('failedProcessScan')} (Scanned: "${decodedCode}")`, type: 'error' });
+        }
+        return;
+      }
+
       const res = await fetch('/api/tools/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,7 +162,65 @@ export default function ScannerPage() {
         inputRef.current.focus();
       }
     }
-  }, [selectedTech, t]);
+  }, [selectedTech, identifyMode, t]);
+
+  const closeIdentifyCard = useCallback(() => {
+    setIdentifyTool(null);
+    setIdentifyName('');
+    setIdentifyImage(null);
+    setIdentifyError(null);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  }, []);
+
+  const handleIdentifyPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIdentifyError(null);
+    try {
+      setIdentifyImage(await compressImageFile(file));
+    } catch (error) {
+      console.error(error);
+      setIdentifyError(t('photoReadFailed'));
+    } finally {
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  const handleIdentifySave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!identifyTool) return;
+
+    const trimmedName = identifyName.trim();
+    if (!trimmedName) {
+      setIdentifyError(t('toolNameRequired'));
+      return;
+    }
+
+    setIdentifyBusy(true);
+    setIdentifyError(null);
+
+    try {
+      const res = await fetch('/api/tools', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: identifyTool.id, name: trimmedName, image: identifyImage }),
+      });
+
+      if (!res.ok) throw new Error('Unable to save the tool');
+
+      setIdentifyCount((count) => count + 1);
+      closeIdentifyCard();
+      setPhotoProgress(null);
+      setScanResult({ text: `${t('toolUpdated').replace('{name}', trimmedName)} ${t('scanNextLabel')}`, type: 'success' });
+      inputRef.current?.focus();
+    } catch (error) {
+      console.error(error);
+      setIdentifyError(t('toolUpdateFailed'));
+    } finally {
+      setIdentifyBusy(false);
+    }
+  };
 
   const handleHardwareSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -199,13 +314,33 @@ export default function ScannerPage() {
       <section className="card scanner-technician-card">
         <h3>{t('activeTechnician')}</h3>
         <div className="form-group scanner-technician-field">
-          <label className="form-label" htmlFor="technician-select">{t('selectTechnician')}</label>
+          <label className="form-label" htmlFor="technician-select">{identifyMode ? t('selectTechnicianIdentify') : t('selectTechnician')}</label>
           {techniciansError && <p className="form-error">{t('unableLoadTechnicians')}</p>}
-          <select id="technician-select" className="form-input" value={selectedTech} onChange={(event) => setSelectedTech(event.target.value)} disabled={cameraOpen}>
+          <select
+            id="technician-select"
+            className="form-input"
+            value={selectedTech}
+            onChange={(event) => {
+              setSelectedTech(event.target.value);
+              closeIdentifyCard();
+              setScanResult(null);
+            }}
+            disabled={cameraOpen}
+          >
             <option value="">{t('selectTechnicianOption')}</option>
-            {technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}
+            {technicians.map((technician) => (
+              <option key={technician.id} value={technician.id}>
+                {technician.name}{isLabeler(technician.role) ? ` — ${t('roleLabelerShort')}` : ''}
+              </option>
+            ))}
           </select>
         </div>
+        {identifyMode && (
+          <div className="identify-mode-banner">
+            <p><strong>{t('labelerModeTitle')}</strong></p>
+            <p>{t('labelerModeHint')}</p>
+          </div>
+        )}
       </section>
 
       {scanResult && (
@@ -219,6 +354,77 @@ export default function ScannerPage() {
               ) : <div className="scan-result-image scan-result-no-image">{t('noImage')}</div>}
               <div><p><strong>{t('tool')}:</strong> {scanResult.tool.name}</p><p><strong>{t('newStatus')}:</strong> {scanResult.tool.status}</p></div>
             </div>
+          )}
+        </section>
+      )}
+
+      {identifyMode && identifyTool && (
+        <section className="card identify-card">
+          <div className="scanner-panel-heading">
+            <div className="scanner-panel-title"><ImagePlus size={20} aria-hidden="true" /><h3>{t('identifyTool')}</h3></div>
+            <button type="button" onClick={closeIdentifyCard} className="btn btn-outline scanner-close-camera">
+              <X size={16} aria-hidden="true" /> {t('cancel')}
+            </button>
+          </div>
+
+          <div className="identify-body">
+            <div className="identify-photo">
+              {identifyImage ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Tool photos may be local data URLs.
+                <img src={identifyImage} alt={identifyTool.name} className="identify-photo-image" />
+              ) : (
+                <div className="identify-photo-image identify-photo-empty">{t('noPhotoYet')}</div>
+              )}
+              <label className="btn btn-outline identify-photo-button">
+                <Camera size={16} aria-hidden="true" /> {identifyImage ? t('changePhoto') : t('addPhoto')}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="identify-photo-input"
+                  onChange={(event) => void handleIdentifyPhotoChange(event)}
+                />
+              </label>
+              <p className="text-muted identify-help">{t('photoHelp')}</p>
+            </div>
+
+            <form className="identify-form" onSubmit={handleIdentifySave}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="identify-name">{t('toolName')}</label>
+                <input
+                  id="identify-name"
+                  type="text"
+                  className="form-input"
+                  value={identifyName}
+                  onChange={(event) => setIdentifyName(event.target.value)}
+                  placeholder={t('toolNamePlaceholder')}
+                  autoComplete="off"
+                  required
+                />
+                {identifyTool.hasPlaceholderName && <p className="text-muted identify-help">{t('placeholderNameHint')}</p>}
+              </div>
+
+              <dl className="identify-meta">
+                <div><dt>{t('labelId')}</dt><dd>{identifyTool.qrCode}</dd></div>
+                <div><dt>{t('status')}</dt><dd>{identifyTool.status}</dd></div>
+                <div><dt>{t('assignedTo')}</dt><dd>{identifyTool.technicianName ?? '—'}</dd></div>
+              </dl>
+
+              {identifyError && <p className="form-error">{identifyError}</p>}
+
+              <button type="submit" className="btn btn-primary" disabled={identifyBusy}>
+                <Save size={16} aria-hidden="true" /> {identifyBusy ? t('saving') : t('saveTool')}
+              </button>
+            </form>
+          </div>
+
+          {photoProgress && (
+            <p className="text-muted identify-help">
+              {t('photoProgress')
+                .replace('{done}', String(photoProgress.total - photoProgress.withoutPhoto))
+                .replace('{total}', String(photoProgress.total))}
+              {identifyCount > 0 && ` ${t('sessionUpdatedCount').replace('{count}', String(identifyCount))}`}
+            </p>
           )}
         </section>
       )}

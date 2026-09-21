@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isLabeler } from '@/lib/technicianRoles';
 
 export async function POST(request: Request) {
   try {
@@ -8,6 +9,21 @@ export async function POST(request: Request) {
 
     if (!qrCode || !technicianId) {
       return NextResponse.json({ error: 'QR Code and Technician ID are required' }, { status: 400 });
+    }
+
+    const technician = await prisma.technician.findUnique({
+      where: { id: technicianId },
+      select: { id: true, role: true },
+    });
+
+    if (!technician) {
+      return NextResponse.json({ error: 'Technician not found' }, { status: 404 });
+    }
+
+    // The identification profile must never create a movement: it only renames
+    // tools and updates their photos, through /api/tools/lookup + PUT /api/tools.
+    if (isLabeler(technician.role)) {
+      return NextResponse.json({ error: 'This profile can only identify tools' }, { status: 403 });
     }
 
     const tool = await prisma.tool.findUnique({

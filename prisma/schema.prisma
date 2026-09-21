@@ -12,6 +12,10 @@ model Technician {
   id        String   @id @default(cuid())
   name      String
   idNumber  String   @unique
+  // "TECHNICIAN" (default) takes and returns tools.
+  // "LABELER" is the identification profile: it can only rename tools and attach
+  // their photos — no TAKEN/RETURNED movements are recorded for it.
+  role      String   @default("TECHNICIAN")
   createdAt DateTime @default(now())
   tools     Tool[]
   logs      Log[]
