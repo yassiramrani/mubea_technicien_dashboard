@@ -1,0 +1,53 @@
+/* Sign-in screen. Kept next to the page it styles so the main stylesheet stays untouched. */
+
+.signin-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: 1.5rem 0;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.signin-header {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  color: var(--primary, #1f6feb);
+}
+
+.signin-header h1 {
+  font-size: 1.35rem;
+  margin: 0 0 0.15rem;
+  color: var(--text, #1a1a1a);
+}
+
+.signin-header p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.signin-submit {
+  justify-content: center;
+}
+
+.signin-error {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #a32219;
+  font-size: 0.9rem;
+}
+
+.signin-note {
+  font-size: 0.8rem;
+  margin: 0;
+}

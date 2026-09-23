@@ -1,11 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, Languages, LayoutDashboard, QrCode, Users, Wrench } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { FileText, Languages, LayoutDashboard, LogOut, QrCode, Users, Wrench } from 'lucide-react';
 import { useTranslation } from '@/lib/LanguageContext';
 
 export default function Sidebar() {
   const { lang, setLang, t } = useTranslation();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // The sign-in screen is reached before there is a session: showing the navigation there
+  // would only offer links that bounce straight back to it.
+  if (pathname === '/signin') {
+    return null;
+  }
+
+  const signOut = async () => {
+    await fetch('/api/auth/signout', { method: 'POST' });
+    // push and refresh together: the URL changes and the server-rendered pages are fetched
+    // again, so nothing that belonged to the session stays on screen.
+    router.push('/signin');
+    router.refresh();
+  };
+
   const links = [
     { href: '/', label: t('overview'), icon: LayoutDashboard },
     { href: '/technicians', label: t('technicians'), icon: Users },
@@ -36,6 +54,14 @@ export default function Sidebar() {
           </Link>
         ))}
       </nav>
+      <button
+        type="button"
+        onClick={() => void signOut()}
+        className="btn btn-outline sidebar-link"
+        style={{ justifyContent: 'center', marginTop: '0.75rem' }}
+      >
+        <LogOut size={18} /> {t('signOut')}
+      </button>
     </aside>
   );
 }

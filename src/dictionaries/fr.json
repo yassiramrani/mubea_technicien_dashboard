@@ -172,5 +172,19 @@
   "paretoOthers": "Autres outils ({count})",
   "paretoCumulative": "Part cumulée",
   "paretoVitalFew": "{count} outil(s) couvrent 80 % des utilisations enregistrées ({percent} % de l'inventaire).",
-  "paretoNoData": "Aucun outil n'a encore été scanné - l'analyse de Pareto apparaîtra dès que l'activité sera enregistrée."
+  "paretoNoData": "Aucun outil n'a encore été scanné - l'analyse de Pareto apparaîtra dès que l'activité sera enregistrée.",
+
+  "signInTitle": "Accès à l'inventaire",
+  "signInSubtitle": "Identifiez-vous pour continuer.",
+  "signInProfile": "Votre profil",
+  "signInChoose": "Choisir un profil",
+  "signInCode": "Code d'accès",
+  "signInSubmit": "Se connecter",
+  "signInWorking": "Vérification...",
+  "signInWrong": "Code refusé. Vérifiez le code et réessayez.",
+  "signInTooMany": "Trop de tentatives. Réessayez dans quelques minutes.",
+  "signInNotConfigured": "L'application n'est pas encore configurée. Contactez le responsable.",
+  "signInUnavailable": "Service momentanément indisponible.",
+  "signInNote": "Toute action est enregistrée au nom du profil connecté.",
+  "signOut": "Se déconnecter"
 }

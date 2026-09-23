@@ -49,8 +49,7 @@ function decodeAzerty(input: string): string {
 
 export default function ScannerPage() {
   const { t } = useTranslation();
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
-  const [selectedTech, setSelectedTech] = useState('');
+  const [technician, setTechnician] = useState<Technician | null>(null);
   const [scanResult, setScanResult] = useState<{ text: string; type: 'success' | 'error'; tool?: ScannedTool } | null>(null);
   const [techniciansError, setTechniciansError] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -71,17 +70,18 @@ export default function ScannerPage() {
   const cameraScannerRef = useRef<Html5QrcodeInstance | null>(null);
   const isProcessingCameraCodeRef = useRef(false);
 
-  // The selected technician decides what a scan does: a standard technician takes
-  // or returns the tool, an identification profile renames it and adds its photo.
-  const selectedTechnician = technicians.find((technician) => technician.id === selectedTech);
-  const identifyMode = isLabeler(selectedTechnician?.role);
+  // The signed-in profile decides what a scan does: a standard technician takes or returns
+  // the tool, an identification profile renames it and adds its photo. It is read from the
+  // session and never chosen in the page, so a movement can never be recorded under a name
+  // that is not the one that signed in.
+  const identifyMode = isLabeler(technician?.role);
 
-  const fetchTechnicians = useCallback(async () => {
+  const fetchTechnician = useCallback(async () => {
     try {
-      const res = await fetch('/api/technicians');
+      const res = await fetch('/api/auth/session');
       const data = await res.json();
-      if (!res.ok || !Array.isArray(data)) throw new Error('Unable to load technicians');
-      setTechnicians(data);
+      if (!res.ok || !data?.id) throw new Error('Unable to load the signed-in profile');
+      setTechnician(data as Technician);
       setTechniciansError(false);
     } catch (error) {
       setTechniciansError(true);
@@ -90,10 +90,10 @@ export default function ScannerPage() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void fetchTechnicians(), 0);
+    const timer = window.setTimeout(() => void fetchTechnician(), 0);
     if (window.matchMedia('(min-width: 721px)').matches) inputRef.current?.focus();
     return () => window.clearTimeout(timer);
-  }, [fetchTechnicians]);
+  }, [fetchTechnician]);
 
   const stopCamera = useCallback(async () => {
     setCameraOpen(false);
@@ -110,7 +110,7 @@ export default function ScannerPage() {
   }, []);
 
   const processScannedCode = useCallback(async (rawScannedCode: string, focusHardwareInput: boolean) => {
-    if (!selectedTech) {
+    if (!technician) {
       setScanResult({ text: t('pleaseSelectTechnician'), type: 'error' });
       return;
     }
@@ -145,7 +145,8 @@ export default function ScannerPage() {
       const res = await fetch('/api/tools/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrCode: decodedCode, technicianId: selectedTech }),
+        // No technician is sent: the server takes it from the session.
+        body: JSON.stringify({ qrCode: decodedCode }),
       });
       const data = await res.json() as ScanResponse;
 
@@ -162,7 +163,7 @@ export default function ScannerPage() {
         inputRef.current.focus();
       }
     }
-  }, [selectedTech, identifyMode, t]);
+  }, [technician, identifyMode, t]);
 
   const closeIdentifyCard = useCallback(() => {
     setIdentifyTool(null);
@@ -296,7 +297,7 @@ export default function ScannerPage() {
   }, [stopCamera]);
 
   const openCamera = () => {
-    if (!selectedTech) {
+    if (!technician) {
       setScanResult({ text: t('pleaseSelectTechnician'), type: 'error' });
       return;
     }
@@ -314,26 +315,12 @@ export default function ScannerPage() {
       <section className="card scanner-technician-card">
         <h3>{t('activeTechnician')}</h3>
         <div className="form-group scanner-technician-field">
-          <label className="form-label" htmlFor="technician-select">{identifyMode ? t('selectTechnicianIdentify') : t('selectTechnician')}</label>
+          <label className="form-label">{identifyMode ? t('selectTechnicianIdentify') : t('selectTechnician')}</label>
           {techniciansError && <p className="form-error">{t('unableLoadTechnicians')}</p>}
-          <select
-            id="technician-select"
-            className="form-input"
-            value={selectedTech}
-            onChange={(event) => {
-              setSelectedTech(event.target.value);
-              closeIdentifyCard();
-              setScanResult(null);
-            }}
-            disabled={cameraOpen}
-          >
-            <option value="">{t('selectTechnicianOption')}</option>
-            {technicians.map((technician) => (
-              <option key={technician.id} value={technician.id}>
-                {technician.name}{isLabeler(technician.role) ? ` — ${t('roleLabelerShort')}` : ''}
-              </option>
-            ))}
-          </select>
+          <p className="form-input" aria-live="polite">
+            {technician?.name ?? t('loading')}
+            {identifyMode ? ` — ${t('roleLabelerShort')}` : ''}
+          </p>
         </div>
         {identifyMode && (
           <div className="identify-mode-banner">

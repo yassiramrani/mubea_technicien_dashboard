@@ -1,6 +1,36 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentBusinessDayBounds } from '@/lib/toolAvailability';
+import { clientKey, rateLimit } from '@/lib/rateLimit';
+import { SESSION_COOKIE, readSession } from '@/lib/session';
+
+export const runtime = 'nodejs';
+
+/** A tool name stays readable, and a photograph cannot be used to store something else. */
+const MAX_NAME_LENGTH = 120;
+const MAX_IMAGE_LENGTH = 2_000_000;
+const MAX_BULK_IDS = 500;
+
+/**
+ * The middleware already refuses an anonymous request. This second check is here because a
+ * guard that only exists in one place disappears the day someone edits the route matcher.
+ */
+async function refuseWithoutSession(request: NextRequest): Promise<NextResponse | null> {
+  const session = await readSession(request.cookies.get(SESSION_COOKIE)?.value);
+
+  return session ? null : NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+}
+
+function refuseWhenTooFast(request: NextRequest, scope: string, limit: number): NextResponse | null {
+  const attempt = rateLimit(clientKey(request, scope), limit, 60 * 1000);
+
+  return attempt.allowed
+    ? null
+    : NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(attempt.retryAfterSeconds) } },
+      );
+}
 
 export async function GET() {
   try {
@@ -33,13 +63,39 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const refusal =
+    (await refuseWithoutSession(request)) ?? refuseWhenTooFast(request, 'tools-write', 60);
+
+  if (refusal) {
+    return refusal;
+  }
+
   try {
     const body = await request.json();
-    const { name, image } = body;
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    if (name.length > MAX_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `Name must not exceed ${MAX_NAME_LENGTH} characters` },
+        { status: 400 },
+      );
+    }
+
+    let image: string | undefined;
+    if (body?.image !== undefined && body?.image !== null) {
+      if (typeof body.image !== 'string' || body.image.length > MAX_IMAGE_LENGTH) {
+        return NextResponse.json(
+          { error: 'Image is not a string, or is larger than the limit' },
+          { status: 400 },
+        );
+      }
+
+      image = body.image;
     }
     // Generate a compact label ID using safe uppercase characters. Eight characters
     // leave enough width for a reliably scannable Code 128 barcode on a 40 × 20 mm label.
@@ -64,10 +120,17 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
+  const refusal =
+    (await refuseWithoutSession(req)) ?? refuseWhenTooFast(req, 'tools-write', 60);
+
+  if (refusal) {
+    return refusal;
+  }
+
   try {
     const body = await req.json();
-    const { id, image, name } = body;
+    const id = typeof body?.id === 'string' ? body.id : '';
 
     if (!id) {
       return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 });
@@ -75,8 +138,32 @@ export async function PUT(req: Request) {
 
     // Prepare the data object with whatever fields were sent from the frontend
     const updateData: { image?: string | null; name?: string } = {};
-    if (image !== undefined) updateData.image = image;
-    if (name !== undefined) updateData.name = name;
+
+    if (body?.name !== undefined) {
+      const name = typeof body.name === 'string' ? body.name.trim() : '';
+
+      if (!name || name.length > MAX_NAME_LENGTH) {
+        return NextResponse.json(
+          { error: `Name must be between 1 and ${MAX_NAME_LENGTH} characters` },
+          { status: 400 },
+        );
+      }
+
+      updateData.name = name;
+    }
+
+    if (body?.image !== undefined) {
+      if (body.image === null) {
+        updateData.image = null;
+      } else if (typeof body.image === 'string' && body.image.length <= MAX_IMAGE_LENGTH) {
+        updateData.image = body.image;
+      } else {
+        return NextResponse.json(
+          { error: 'Image is not a string, or is larger than the limit' },
+          { status: 400 },
+        );
+      }
+    }
 
     const updatedTool = await prisma.tool.update({
       where: { id },
@@ -92,13 +179,27 @@ export async function PUT(req: Request) {
 
 // Bulk-update the label print state. Used by the tools page to mark labels as
 // printed after a batch run, and to flag a bad print for reprinting.
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
+  const refusal =
+    (await refuseWithoutSession(request)) ?? refuseWhenTooFast(request, 'tools-write', 60);
+
+  if (refusal) {
+    return refusal;
+  }
+
   try {
     const body = await request.json();
     const { ids, labelPrinted } = body as { ids?: string[]; labelPrinted?: boolean };
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: 'At least one tool ID is required' }, { status: 400 });
+    }
+
+    if (ids.length > MAX_BULK_IDS || ids.some((id) => typeof id !== 'string')) {
+      return NextResponse.json(
+        { error: `At most ${MAX_BULK_IDS} identifiers, all as strings` },
+        { status: 400 },
+      );
     }
 
     if (typeof labelPrinted !== 'boolean') {
@@ -120,7 +221,14 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
+  const refusal =
+    (await refuseWithoutSession(request)) ?? refuseWhenTooFast(request, 'tools-delete', 20);
+
+  if (refusal) {
+    return refusal;
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get('scope');

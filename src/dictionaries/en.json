@@ -172,5 +172,19 @@
   "paretoOthers": "Other tools ({count})",
   "paretoCumulative": "Cumulative share",
   "paretoVitalFew": "{count} tool(s) cover 80% of all recorded uses ({percent}% of the inventory).",
-  "paretoNoData": "No tool has been scanned yet - the Pareto analysis will appear as soon as activity is recorded."
+  "paretoNoData": "No tool has been scanned yet - the Pareto analysis will appear as soon as activity is recorded.",
+
+  "signInTitle": "Access to the inventory",
+  "signInSubtitle": "Identify yourself to continue.",
+  "signInProfile": "Your profile",
+  "signInChoose": "Choose a profile",
+  "signInCode": "Access code",
+  "signInSubmit": "Sign in",
+  "signInWorking": "Checking...",
+  "signInWrong": "Code refused. Check it and try again.",
+  "signInTooMany": "Too many attempts. Try again in a few minutes.",
+  "signInNotConfigured": "The application is not configured yet. Contact the person in charge.",
+  "signInUnavailable": "Service temporarily unavailable.",
+  "signInNote": "Every action is recorded under the signed-in profile.",
+  "signOut": "Sign out"
 }

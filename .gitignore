@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Portable Node runtime and build output kept out of the repository.
+/node_portable
+
+# A local development database must never be versioned.
+/prisma/dev.db
