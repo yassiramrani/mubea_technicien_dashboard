@@ -66,7 +66,7 @@ async function hmacKey(): Promise<CryptoKey> {
   if (!value) {
     throw new Error(
       'MUBEA_SESSION_SECRET must be set to at least 32 characters. Generate one with: ' +
-        '$b = New-Object byte[] 48; [System.Security.Cryptography.RandomNumberGenerator]::Fill($b); [Convert]::ToBase64String($b)',
+        `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`,
     );
   }
 
