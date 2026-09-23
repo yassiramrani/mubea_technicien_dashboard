@@ -65,7 +65,8 @@ async function hmacKey(): Promise<CryptoKey> {
   const value = secret();
   if (!value) {
     throw new Error(
-      'MUBEA_SESSION_SECRET must be set to at least 32 characters. Generate one with: openssl rand -base64 48',
+      'MUBEA_SESSION_SECRET must be set to at least 32 characters. Generate one with: ' +
+        '$b = New-Object byte[] 48; [System.Security.Cryptography.RandomNumberGenerator]::Fill($b); [Convert]::ToBase64String($b)',
     );
   }
 
