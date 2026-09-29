@@ -70,3 +70,14 @@ export function canAccess(role: string | null | undefined, section: Section): bo
 export function isFullAccessRole(role: string | null | undefined): boolean {
   return role === ADMIN_ROLE;
 }
+
+/**
+ * Whether a profile may add a profile or change an existing one.
+ *
+ * This is not a section and it is not behind the switch above: it holds always. A profile is
+ * what decides what a person may do, and the administrator profile can hand itself out again,
+ * so the right to create or change one cannot belong to the people it governs.
+ */
+export function canManageProfiles(role: string | null | undefined): boolean {
+  return role === ADMIN_ROLE;
+}

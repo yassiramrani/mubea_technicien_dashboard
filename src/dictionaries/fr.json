@@ -30,6 +30,7 @@
   "roleAdminShort": "Administrateur",
   "roleAdminHint": "Un profil administrateur accède à toutes les sections : tableau de bord, analyse de Pareto, gestion des techniciens et des outils, scanner et rapports. Seul un administrateur peut l'attribuer ou le retirer.",
   "adminGrantRefused": "Seul un profil administrateur peut attribuer ou retirer le profil administrateur.",
+  "profilesAdminOnly": "Seul un profil administrateur peut ajouter ou modifier un profil. La liste ci-dessous est en lecture seule pour votre profil.",
   "technicianAddFailed": "Impossible d'ajouter le profil. Vérifiez que le numéro d'identification n'est pas déjà utilisé.",
   "signedInAs": "Connecté en tant que",
   "fullAccess": "Accès complet à toutes les sections",

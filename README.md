@@ -47,9 +47,17 @@ MUBEA_TECHNICIAN_CODES={"ADMIN-001":"scrypt\$16384\$8\$1\$…"}
 Restart the application afterwards: the environment is read at startup.
 
 The profile can also be created from the **Technicians** page, with the **Administrator**
-profile. The first administrator may be created by anybody, on purpose: a deployment that has
-none could otherwise never acquire one. From the second on, only an administrator may hand the
-role out.
+profile.
+
+### Who may manage profiles
+
+Only an administrator may add a profile or change one — including changing anybody's role. This
+holds whatever `ENFORCE_ROLE_ACCESS` is set to: it is a rule about a single action, not about
+reaching a page. On the **Technicians** page every other profile sees the list read-only.
+
+One exception, deliberately narrow and only for *creating*: while a deployment has no
+administrator at all, the first one may be created, otherwise it could never acquire one. It
+closes by itself as soon as the first administrator exists.
 
 An administrator needs a personal code: the shared workshop code (`MUBEA_ACCESS_CODE_HASH`) is
 deliberately refused for it, because it is a code the whole floor knows and accepting it would

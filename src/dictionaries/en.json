@@ -30,6 +30,7 @@
   "roleAdminShort": "Administrator",
   "roleAdminHint": "An administrator profile reaches every section: dashboard, Pareto analysis, technician and tool management, scanner and reports. Only an administrator can grant or remove it.",
   "adminGrantRefused": "Only an administrator profile can grant or remove the administrator profile.",
+  "profilesAdminOnly": "Only an administrator profile can add a profile or change one. The list below is read-only for your profile.",
   "technicianAddFailed": "Could not add the profile. Check the ID number is not already used.",
   "signedInAs": "Signed in as",
   "fullAccess": "Full access to every section",
