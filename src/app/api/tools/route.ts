@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireSection } from '@/lib/auth';
 import { getCurrentBusinessDayBounds } from '@/lib/toolAvailability';
 import { clientKey, rateLimit } from '@/lib/rateLimit';
 import { SESSION_COOKIE, readSession } from '@/lib/session';
@@ -65,7 +66,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const refusal =
-    (await refuseWithoutSession(request)) ?? refuseWhenTooFast(request, 'tools-write', 60);
+    (await requireSection(request, 'tools')) ??
+    (await refuseWithoutSession(request)) ??
+    refuseWhenTooFast(request, 'tools-write', 60);
 
   if (refusal) {
     return refusal;
@@ -122,7 +125,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const refusal =
-    (await refuseWithoutSession(req)) ?? refuseWhenTooFast(req, 'tools-write', 60);
+    (await requireSection(req, 'tools')) ??
+    (await refuseWithoutSession(req)) ??
+    refuseWhenTooFast(req, 'tools-write', 60);
 
   if (refusal) {
     return refusal;
@@ -181,7 +186,9 @@ export async function PUT(req: NextRequest) {
 // printed after a batch run, and to flag a bad print for reprinting.
 export async function PATCH(request: NextRequest) {
   const refusal =
-    (await refuseWithoutSession(request)) ?? refuseWhenTooFast(request, 'tools-write', 60);
+    (await requireSection(request, 'tools')) ??
+    (await refuseWithoutSession(request)) ??
+    refuseWhenTooFast(request, 'tools-write', 60);
 
   if (refusal) {
     return refusal;
@@ -223,7 +230,9 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const refusal =
-    (await refuseWithoutSession(request)) ?? refuseWhenTooFast(request, 'tools-delete', 20);
+    (await requireSection(request, 'tools')) ??
+    (await refuseWithoutSession(request)) ??
+    refuseWhenTooFast(request, 'tools-delete', 20);
 
   if (refusal) {
     return refusal;

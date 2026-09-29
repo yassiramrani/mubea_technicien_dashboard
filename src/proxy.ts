@@ -10,6 +10,11 @@ import { SESSION_COOKIE, readSession } from '@/lib/session';
  * When the application is not configured with a session secret, no session can ever be valid,
  * so everything is refused. That is the intended behaviour: an unconfigured deployment must be
  * closed rather than quietly open.
+ *
+ * This file was `middleware.ts`; Next.js 16 renamed the convention to Proxy and the exported
+ * function from `middleware` to `proxy`. The behaviour is unchanged. The check stays limited to
+ * the signature of the session — a request must not pay for a database round trip here — and
+ * the question of *which* profile is asking is answered in the route handlers, by `requireSection`.
  */
 
 const PUBLIC_PREFIXES = ['/signin', '/api/auth'];
@@ -20,7 +25,7 @@ function isPublic(pathname: string): boolean {
   );
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublic(pathname)) {

@@ -1,8 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireSection } from '@/lib/auth';
 import { getCurrentBusinessDayBounds } from '@/lib/toolAvailability';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const refusal = await requireSection(request, 'dashboard');
+
+  if (refusal) {
+    return refusal;
+  }
+
   try {
     const { start: today, end: tomorrow } = getCurrentBusinessDayBounds();
     const endOfDay = new Date(tomorrow.getTime() - 1);

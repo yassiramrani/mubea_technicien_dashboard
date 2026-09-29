@@ -1,4 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { isAdmin } from './technicianRoles';
 
 /**
  * Verifies the code a technician types at sign-in.
@@ -117,8 +118,13 @@ export function isSignInConfigured(): boolean {
 /**
  * Verifies a code for one technician. The personal code is tried first; the shared workshop
  * code is the fallback.
+ *
+ * The shared code never opens an administrator profile. It is a code the whole workshop knows
+ * — that is the point of it — so accepting it for the manager profile would mean that anyone
+ * with the floor code could sign in as the person who manages the technicians and the tools.
+ * An administrator therefore needs a personal code of its own, and nothing else.
  */
-export function verifyTechnicianCode(idNumber: string, code: string): boolean {
+export function verifyTechnicianCode(idNumber: string, code: string, role?: string): boolean {
   if (!code) {
     return false;
   }
@@ -127,6 +133,10 @@ export function verifyTechnicianCode(idNumber: string, code: string): boolean {
 
   if (typeof personal === 'string' && verifyEncodedCode(code, personal)) {
     return true;
+  }
+
+  if (isAdmin(role)) {
+    return false;
   }
 
   const shared = sharedCode();

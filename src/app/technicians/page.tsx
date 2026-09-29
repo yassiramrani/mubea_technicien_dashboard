@@ -3,8 +3,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
-import { DEFAULT_TECHNICIAN_ROLE, LABELER_ROLE, TECHNICIAN_ROLES, type TechnicianRole } from '@/lib/technicianRoles';
+import {
+  DEFAULT_TECHNICIAN_ROLE,
+  ROLE_LABEL_KEY,
+  TECHNICIAN_ROLES,
+  normalizeTechnicianRole,
+  type TechnicianRole,
+} from '@/lib/technicianRoles';
 
+
+// Turns the machine-readable reason a route refused into the sentence to display.
+async function refusalReason(response: Response): Promise<string> {
+  const payload: unknown = await response.json().catch(() => null);
+
+  return typeof payload === 'object' && payload !== null
+    ? String((payload as { error?: unknown }).error ?? '')
+    : '';
+}
 
 type Technician = {
   id: string;
@@ -23,6 +38,7 @@ export default function TechniciansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [roleMessage, setRoleMessage] = useState('');
+  const [formMessage, setFormMessage] = useState('');
 
   const fetchTechnicians = useCallback(async () => {
     try {
@@ -48,20 +64,28 @@ export default function TechniciansPage() {
     e.preventDefault();
     if (!name || !idNumber) return;
 
+    setFormMessage('');
+
     try {
       const res = await fetch('/api/technicians', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, idNumber, role }),
       });
-      if (res.ok) {
-        setName('');
-        setIdNumber('');
-        setRole(DEFAULT_TECHNICIAN_ROLE);
-        fetchTechnicians();
+
+      if (!res.ok) {
+        const reason = await refusalReason(res);
+        setFormMessage(reason === 'adminOnly' ? t('adminGrantRefused') : t('technicianAddFailed'));
+        return;
       }
+
+      setName('');
+      setIdNumber('');
+      setRole(DEFAULT_TECHNICIAN_ROLE);
+      fetchTechnicians();
     } catch (error) {
       console.error(error);
+      setFormMessage(t('technicianAddFailed'));
     }
   };
 
@@ -74,7 +98,12 @@ export default function TechniciansPage() {
         body: JSON.stringify({ id: technicianId, role: newRole }),
       });
 
-      if (!res.ok) throw new Error('Unable to update the technician profile');
+      if (!res.ok) {
+        const reason = await refusalReason(res);
+        setRoleMessage(reason === 'adminOnly' ? t('adminGrantRefused') : t('roleUpdateFailed'));
+        fetchTechnicians();
+        return;
+      }
 
       setTechnicians((current) => current.map((tech) => (
         tech.id === technicianId ? { ...tech, role: newRole } : tech
@@ -92,7 +121,7 @@ export default function TechniciansPage() {
       ID: tech.id,
       Name: tech.name,
       IDNumber: tech.idNumber,
-      Profile: tech.role === LABELER_ROLE ? 'LABELER' : 'TECHNICIAN',
+      Profile: normalizeTechnicianRole(tech.role),
       AssignedToolsCount: tech.tools.length,
       AssignedToolsNames: tech.tools.map((tool) => tool.name).join(', '),
     }));
@@ -140,11 +169,11 @@ export default function TechniciansPage() {
               id="new-technician-role"
               className="form-input"
               value={role}
-              onChange={(e) => setRole(e.target.value as TechnicianRole)}
+              onChange={(e) => setRole(normalizeTechnicianRole(e.target.value))}
             >
               {TECHNICIAN_ROLES.map((value) => (
                 <option key={value} value={value}>
-                  {value === LABELER_ROLE ? t('roleLabeler') : t('roleTechnician')}
+                  {t(ROLE_LABEL_KEY[value])}
                 </option>
               ))}
             </select>
@@ -154,6 +183,8 @@ export default function TechniciansPage() {
           </button>
         </form>
         <p className="text-muted" style={{ marginTop: '0.75rem', fontSize: '0.8rem' }}>{t('roleLabelerHint')}</p>
+        <p className="text-muted" style={{ marginTop: '0.25rem', fontSize: '0.8rem' }}>{t('roleAdminHint')}</p>
+        {formMessage && <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--danger)' }}>{formMessage}</p>}
       </div>
 
       <div className="card">
@@ -180,12 +211,15 @@ export default function TechniciansPage() {
                     <select
                       className="form-input"
                       style={{ minWidth: '210px', padding: '0.3rem 0.5rem' }}
-                      value={tech.role === LABELER_ROLE ? LABELER_ROLE : DEFAULT_TECHNICIAN_ROLE}
+                      value={normalizeTechnicianRole(tech.role)}
                       onChange={(e) => void handleRoleChange(tech.id, e.target.value)}
                       aria-label={`${t('technicianRole')} — ${tech.name}`}
                     >
-                      <option value={DEFAULT_TECHNICIAN_ROLE}>{t('roleTechnician')}</option>
-                      <option value={LABELER_ROLE}>{t('roleLabeler')}</option>
+                      {TECHNICIAN_ROLES.map((value) => (
+                        <option key={value} value={value}>
+                          {t(ROLE_LABEL_KEY[value])}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td>

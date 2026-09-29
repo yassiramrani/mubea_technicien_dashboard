@@ -1,7 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireSection } from '@/lib/auth';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const refusal = await requireSection(request, 'logs');
+
+  if (refusal) {
+    return refusal;
+  }
+
   const { searchParams } = new URL(request.url);
   const dateStr = searchParams.get('date');
 

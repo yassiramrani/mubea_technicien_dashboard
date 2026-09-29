@@ -58,13 +58,13 @@ export async function POST(request: Request) {
 
   const technician = await prisma.technician.findUnique({
     where: { id: technicianId },
-    select: { id: true, idNumber: true, name: true },
+    select: { id: true, idNumber: true, name: true, role: true },
   });
 
   // The code is always checked, even when the technician is unknown, and the answer is always
   // the same. Distinguishing "unknown name" from "wrong code" would tell an attacker which
   // half of the pair they already have.
-  const accepted = verifyTechnicianCode(technician?.idNumber ?? '', code);
+  const accepted = verifyTechnicianCode(technician?.idNumber ?? '', code, technician?.role);
 
   if (!technician || !accepted) {
     return NextResponse.json({ error: 'wrongCode' }, { status: 401 });
