@@ -47,7 +47,7 @@ export default function LogsPage() {
     const doc = new jsPDF();
     
     doc.setFontSize(18);
-    doc.text('Mubea Tools Inventory Control System', 14, 22);
+    doc.text('Mubea Maintenance Inventory', 14, 22);
     
     doc.setFontSize(11);
     doc.setTextColor(100);

@@ -1,4 +1,4 @@
-# Mubea Tools Inventory Control System
+# Mubea Maintenance Inventory
 
 Tools inventory dashboard built with Next.js, TypeScript, and Prisma.
 
