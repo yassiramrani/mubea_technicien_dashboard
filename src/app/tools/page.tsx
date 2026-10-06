@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import type { Html5Qrcode as Html5QrcodeInstance } from 'html5-qrcode';
-import { AlertTriangle, Trash2, Edit2, CheckCircle2, Printer, RotateCcw, Camera, X } from 'lucide-react';
+import { AlertTriangle, Trash2, Edit2, CheckCircle2, Printer, RotateCcw, Camera, X, Search, Download, ChevronLeft, ChevronRight, QrCode } from 'lucide-react';
+import { filterInventory, type InventoryStatus, type InventorySort, type LabelFilter } from '@/lib/inventoryFilters';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { useTranslation } from '@/lib/LanguageContext';
 import { jsPDF } from 'jspdf';
@@ -20,7 +23,7 @@ type Tool = {
   image?: string | null;
   qrCode: string;
   status: string;
-  technician: { name: string } | null;
+  technician: { name: string; idNumber?: string } | null;
   checkedOutAt: string | null;
   isOverdue: boolean;
   usageCount: number;
@@ -42,7 +45,7 @@ export function PrintQRCode({ value }: { value: string }) {
   );
 }
 
-export default function ToolsPage() {
+function ToolsInventory({ initialSearch, initialStatus }: { initialSearch: string; initialStatus: InventoryStatus }) {
   const { t, lang } = useTranslation();
   const [tools, setTools] = useState<Tool[]>([]);
   const [name, setName] = useState('');
@@ -53,6 +56,13 @@ export default function ToolsPage() {
   const [loading, setLoading] = useState(true);
   const [printingTool, setPrintingTool] = useState<Tool | null>(null);
   const [error, setError] = useState(false);
+  const [search, setSearch] = useState(initialSearch);
+  const [statusFilter, setStatusFilter] = useState<InventoryStatus>(initialStatus);
+  const [labelFilter, setLabelFilter] = useState<LabelFilter>('all');
+  const [sort, setSort] = useState<InventorySort>(initialStatus === 'overdue' ? 'oldest' : 'name');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [exporting, setExporting] = useState(false);
 
   const [editingToolId, setEditingToolId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
@@ -101,7 +111,18 @@ export default function ToolsPage() {
   // "Unused" means never scanned since the tool was added (no history at all).
   const unusedTools = useMemo(() => tools.filter((tool) => tool.usageCount === 0), [tools]);
   const selectedTools = useMemo(() => tools.filter((tool) => selectedIds.has(tool.id)), [tools, selectedIds]);
-  const allSelected = tools.length > 0 && selectedIds.size === tools.length;
+  const filteredTools = useMemo(() => filterInventory(tools, {
+    search, status: statusFilter, label: labelFilter, sort, lang,
+  }), [tools, search, statusFilter, labelFilter, sort, lang]);
+  const pageCount = Math.max(1, Math.ceil(filteredTools.length / pageSize));
+  const unusedFiltered = filteredTools.filter((tool) => tool.usageCount === 0 && tool.status !== 'ASSIGNED');
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleTools = filteredTools.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const allSelected = visibleTools.length > 0 && visibleTools.every((tool) => selectedIds.has(tool.id));
+  const resetViewSelection = () => { setPage(0); setSelectedIds(new Set()); };
+  const clearFilters = () => {
+    setSearch(''); setStatusFilter('all'); setLabelFilter('all'); setSort('name'); resetViewSelection();
+  };
 
   const toggleSelected = (id: string) => {
     setSelectedIds((current) => {
@@ -113,14 +134,18 @@ export default function ToolsPage() {
   };
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(tools.map((tool) => tool.id)));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      visibleTools.forEach((tool) => { if (allSelected) next.delete(tool.id); else next.add(tool.id); });
+      return next;
+    });
   };
 
   const clearSelection = () => setSelectedIds(new Set());
 
   // Assigned tools are left out: they must be returned before they can be removed.
   const selectUnusedTools = () => {
-    setSelectedIds(new Set(unusedTools.filter((tool) => tool.status !== 'ASSIGNED').map((tool) => tool.id)));
+    setSelectedIds(new Set(unusedFiltered.map((tool) => tool.id)));
   };
 
   const handleBulkDeleteSelected = async () => {
@@ -585,21 +610,28 @@ export default function ToolsPage() {
     }, 100);
   };
 
-  const handleExportExcel = () => {
-    const data = tools.map(t => ({
+  const handleExportExcel = async () => {
+    setExporting(true);
+    const data = filteredTools.map(t => ({
       ID: t.id,
       Name: t.name,
       ImageURL: t.image || 'N/A',
       QRCode: t.qrCode,
       Status: t.status,
       AssignedTo: t.technician ? t.technician.name : 'None',
+      TechnicianID: t.technician?.idNumber || '',
+      CheckedOutAt: t.status === 'ASSIGNED' && t.checkedOutAt ? formatCheckedOutAt(t.checkedOutAt) : '',
+      Overdue: t.isOverdue ? 'Yes' : 'No',
+      Uses: t.usageCount,
       LabelPrinted: t.labelPrinted ? 'Yes' : 'No',
     }));
-    exportToExcel(data, 'Mubea_Tools');
+    try { await exportToExcel(data, 'Mubea_Tools_Filtered'); }
+    catch { setInventoryMessage(t('exportFailed')); }
+    finally { setExporting(false); }
   };
 
   const formatCheckedOutAt = (value: string) =>
-    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Casablanca' }).format(new Date(value));
 
   return (
     <div>
@@ -651,16 +683,21 @@ export default function ToolsPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Tools Management</h1>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={handleExportExcel} className="btn btn-primary" disabled={tools.length === 0}>
-            {t('exportExcel')}
+      <div className="page-header">
+        <div><h1 className="page-title">{t('toolManagement')}</h1><p className="page-description">{t('inventoryDescription')}</p></div>
+        <div className="header-actions">
+          <button onClick={() => void handleExportExcel()} className="btn btn-outline" disabled={filteredTools.length === 0 || loading || error || exporting}>
+            <Download size={16} aria-hidden="true" />{t(exporting ? 'exporting' : 'exportFiltered')}
           </button>
+          <Link href="/scanner" className="btn btn-primary"><QrCode size={17} aria-hidden="true" />{t('openScanner')}</Link>
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: '2rem' }}>
+      <details className="inventory-details" onToggle={(event) => {
+        if (!event.currentTarget.open && reconcileCameraOpen) void stopReconcileCamera();
+      }}>
+      <summary>{t('labelPrinting')} · {printedCount}/{tools.length}</summary>
+      <div className="card">
         <h3 style={{ marginBottom: '0.5rem' }}>{t('labelPrinting')}</h3>
         <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>
           {t('labelsPrintedSummary')
@@ -754,24 +791,28 @@ export default function ToolsPage() {
           <p style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}>{labelMessage}</p>
         )}
       </div>
-      
-      <div className="card" style={{ marginBottom: '2rem' }}>
+      </details>
+      <details className="inventory-details">
+      <summary>{t('addNewTool')}</summary>
+      <div className="card">
         <h3 style={{ marginBottom: '1rem' }}>{t('addNewTool')}</h3>
-        <form onSubmit={handleAddTool} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+        <form onSubmit={handleAddTool} className="inventory-add-form" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
           <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-            <label className="form-label">{t('toolName')}</label>
+            <label htmlFor="new-tool-name" className="form-label">{t('toolName')}</label>
             <input 
+              id="new-tool-name"
               type="text" 
               className="form-input" 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Bosch Drill 500W"
+              placeholder={t('toolNamePlaceholder')}
               required
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-            <label className="form-label">{t('toolImageOptional')}</label>
+            <label htmlFor="new-tool-image" className="form-label">{t('toolImageOptional')}</label>
             <input 
+              id="new-tool-image"
               type="file" 
               accept="image/*"
               className="form-input" 
@@ -784,35 +825,34 @@ export default function ToolsPage() {
           </button>
         </form>
       </div>
+      </details>
 
-      <ParetoCard tools={tools} loading={loading} />
-
-      <div className="card">
+      <div className="card" id="inventory" style={{ scrollMarginTop: '100px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           <div>
             <h3 style={{ marginBottom: '0.25rem' }}>{t('toolsInventory')}</h3>
             <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
-              {t('unusedToolsSummary').replace('{count}', String(unusedTools.length))}
+              {t('unusedToolsSummary').replace('{count}', String(unusedTools.length))} · {t('selectedCount').replace('{count}', String(selectedTools.length))}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div className="inventory-bulk-actions" data-selected={selectedIds.size > 0}>
             <button
               onClick={selectUnusedTools}
               className="btn btn-outline"
-              disabled={unusedTools.length === 0}
+              disabled={unusedFiltered.length === 0}
             >
-              {t('selectUnused').replace('{count}', String(unusedTools.length))}
+              {t('selectUnused').replace('{count}', String(unusedFiltered.length))}
             </button>
             <button
               onClick={clearSelection}
-              className="btn btn-outline"
+              className="btn btn-outline selection-only"
               disabled={selectedIds.size === 0}
             >
               {t('clearSelection')}
             </button>
             <button
               onClick={handleBulkDeleteSelected}
-              className="btn btn-outline"
+              className="btn btn-outline selection-only"
               style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
               disabled={cleanupBusy || selectedTools.length === 0}
             >
@@ -821,14 +861,28 @@ export default function ToolsPage() {
             </button>
           </div>
         </div>
+        <div className="filter-tabs" aria-label={t('filterByStatus')}>
+          {(['all', 'AVAILABLE', 'ASSIGNED', 'overdue'] as const).map((status) => <button type="button" key={status} className="filter-tab" aria-pressed={statusFilter === status} onClick={() => { setStatusFilter(status); if (status === 'overdue') setSort('oldest'); resetViewSelection(); }}>
+            {t(status === 'all' ? 'allTools' : status === 'AVAILABLE' ? 'available' : status === 'ASSIGNED' ? 'assigned' : 'overdue')}
+            <span>{loading || error ? '—' : tools.filter((tool) => status === 'all' || (status === 'overdue' ? tool.isOverdue : tool.status === status)).length}</span>
+          </button>)}
+        </div>
+        <div className="inventory-toolbar">
+          <div className="form-group search-field"><label htmlFor="inventory-search" className="form-label">{t('searchInventory')}</label><div className="search-input-wrap"><Search size={16} aria-hidden="true" /><input id="inventory-search" className="form-input" type="search" value={search} onChange={(e) => { setSearch(e.target.value); resetViewSelection(); }} placeholder={t('inventorySearchPlaceholder')} /></div></div>
+          <div className="form-group"><label htmlFor="label-filter" className="form-label">{t('labelStatus')}</label><select id="label-filter" className="form-input" value={labelFilter} onChange={(e) => { setLabelFilter(e.target.value as LabelFilter); resetViewSelection(); }}><option value="all">{t('allLabels')}</option><option value="pending">{t('labelPending')}</option><option value="printed">{t('labelPrinted')}</option></select></div>
+          <div className="form-group"><label htmlFor="inventory-sort" className="form-label">{t('sortBy')}</label><select id="inventory-sort" className="form-input" value={sort} onChange={(e) => { setSort(e.target.value as InventorySort); setPage(0); }}><option value="name">{t('sortName')}</option><option value="oldest">{t('sortOldest')}</option><option value="usage">{t('sortUsage')}</option></select></div>
+          <button type="button" className="btn btn-outline" onClick={clearFilters} disabled={!search && statusFilter === 'all' && labelFilter === 'all' && sort === 'name'}>{t('resetFilters')}</button>
+        </div>
         {inventoryMessage && (
           <p style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>{inventoryMessage}</p>
         )}
-        {error && <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{t('unableLoadTools')}</p>}
+        {error && <div className="error-banner" role="alert"><span>{t('unableLoadTools')}</span><button className="btn btn-outline" onClick={() => void fetchTools()}>{t('retry')}</button></div>}
         {loading ? (
           <p>{t('loading')}</p>
+        ) : error && tools.length === 0 ? (
+          <div className="empty-state">{t('unableLoadTools')}</div>
         ) : (
-          <table className="data-table">
+          <div className="table-scroll" role="region" aria-label={t('toolsInventory')} tabIndex={0}><table className="data-table">
             <thead>
               <tr>
                 <th style={{ width: '32px' }}>
@@ -836,7 +890,7 @@ export default function ToolsPage() {
                     type="checkbox"
                     checked={allSelected}
                     onChange={toggleSelectAll}
-                    aria-label={t('selectAll')}
+                    aria-label={t('selectVisible')}
                   />
                 </th>
                 <th>{t('image')}</th>
@@ -849,7 +903,7 @@ export default function ToolsPage() {
               </tr>
             </thead>
             <tbody>
-              {tools.map((tool) => (
+              {visibleTools.map((tool) => (
                 <tr key={tool.id} className={tool.isOverdue ? 'tool-overdue-row' : undefined}>
                   <td>
                     <input
@@ -860,10 +914,11 @@ export default function ToolsPage() {
                     />
                   </td>
                   <td>
-                    <div 
+                    <button type="button"
                       onClick={() => handleUpdateImageClick(tool.id)}
                       style={{ cursor: 'pointer', display: 'inline-block' }}
-                      title="Click to update image"
+                      title={t('updateImage')}
+                      aria-label={`${t('updateImage')}: ${tool.name}`}
                     >
                       {tool.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -871,7 +926,7 @@ export default function ToolsPage() {
                       ) : (
                         <div style={{ width: '40px', height: '40px', backgroundColor: '#e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>{t('noImage')}</div>
                       )}
-                    </div>
+                    </button>
                   </td>
                   
                   <td>
@@ -882,6 +937,7 @@ export default function ToolsPage() {
                           className="form-input"
                           style={{ padding: '0.25rem 0.5rem', height: 'auto', width: '150px' }}
                           value={editingName}
+                          aria-label={`${t('editToolName')}: ${tool.name}`}
                           onChange={(e) => setEditingName(e.target.value)}
                           autoFocus
                           onKeyDown={(e) => {
@@ -894,19 +950,19 @@ export default function ToolsPage() {
                           className="btn btn-primary" 
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                         >
-                          Save
+                          {t('saveTool')}
                         </button>
                         <button 
                           onClick={() => setEditingToolId(null)} 
                           className="btn btn-outline" 
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                         >
-                          Cancel
+                          {t('cancel')}
                         </button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span>{tool.name}</span>
+                        <div><strong>{tool.name}</strong><div className="text-muted" style={{ fontSize: '0.75rem' }}>{tool.qrCode}</div></div>
                         <button 
                           onClick={() => {
                             setEditingToolId(tool.id);
@@ -914,7 +970,8 @@ export default function ToolsPage() {
                           }}
                           className="btn btn-outline"
                           style={{ padding: '0.2rem', border: 'none', color: '#64748b', background: 'transparent' }}
-                          title="Edit name"
+                          title={t('editToolName')}
+                          aria-label={`${t('editToolName')}: ${tool.name}`}
                         >
                           <Edit2 size={14} />
                         </button>
@@ -936,6 +993,7 @@ export default function ToolsPage() {
                         className="btn btn-outline"
                         style={{ padding: '0.2rem', border: 'none', color: '#64748b', background: 'transparent' }}
                         title={tool.labelPrinted ? t('markLabelUnprinted') : t('markLabelPrinted')}
+                        aria-label={tool.labelPrinted ? t('markLabelUnprinted') : t('markLabelPrinted')}
                       >
                         {tool.labelPrinted ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
                       </button>
@@ -947,12 +1005,12 @@ export default function ToolsPage() {
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <span className={`badge ${tool.status === 'AVAILABLE' ? 'badge-success' : 'badge-warning'}`}>
-                        {tool.status}
+                        {t(tool.status === 'AVAILABLE' ? 'available' : 'assigned')}
                       </span>
                       {tool.isOverdue && (
                         <span
                           className="badge badge-danger"
-                          title={`${t('checkedOut')}: ${formatCheckedOutAt(tool.checkedOutAt!)}`}
+                          title={tool.checkedOutAt ? `${t('checkedOut')}: ${formatCheckedOutAt(tool.checkedOutAt)}` : undefined}
                         >
                           <AlertTriangle size={12} aria-hidden="true" />
                           {t('overdue')}
@@ -975,6 +1033,8 @@ export default function ToolsPage() {
                       </button>
                       <button
                         onClick={() => handleDeleteTool(tool)}
+                        disabled={tool.status === 'ASSIGNED' || cleanupBusy}
+                        aria-label={`${t('deleteTool')}: ${tool.name}`}
                         className="btn btn-outline"
                         style={{
                           padding: '0.25rem 0.5rem',
@@ -992,15 +1052,20 @@ export default function ToolsPage() {
                   </td>
                 </tr>
               ))}
-              {tools.length === 0 && (
+              {visibleTools.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center' }}>{t('noTools')}</td>
+                  <td colSpan={8}><div className="empty-state"><strong>{t(tools.length ? 'noMatchingTools' : 'noTools')}</strong><p>{t('tryDifferentFilters')}</p></div></td>
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
+        <div className="table-footer">
+          <p aria-live="polite">{loading ? t('loading') : t('resultsCount').replace('{from}', String(filteredTools.length ? currentPage * pageSize + 1 : 0)).replace('{to}', String(Math.min((currentPage + 1) * pageSize, filteredTools.length))).replace('{total}', String(filteredTools.length))}</p>
+          <div className="pagination-actions"><label htmlFor="inventory-page-size">{t('rowsPerPage')}</label><select id="inventory-page-size" className="form-input" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select><button type="button" className="btn btn-outline" aria-label={t('previousPage')} disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></button><span>{currentPage + 1}/{pageCount}</span><button type="button" className="btn btn-outline" aria-label={t('nextPage')} disabled={currentPage + 1 >= pageCount} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></button></div>
+        </div>
       </div>
+      <details className="inventory-details" style={{ marginTop: '1rem' }}><summary>{t('paretoTitle')}</summary><ParetoCard tools={tools} loading={loading} /></details>
       <input 
         type="file" 
         accept="image/*" 
@@ -1010,4 +1075,16 @@ export default function ToolsPage() {
       />
     </div>
   );
+}
+
+function ToolsWithQuery() {
+  const params = useSearchParams();
+  const rawStatus = params.get('status');
+  const status: InventoryStatus = rawStatus === 'AVAILABLE' || rawStatus === 'ASSIGNED' || rawStatus === 'overdue' ? rawStatus : 'all';
+  return <ToolsInventory key={params.toString()} initialSearch={params.get('search') ?? ''} initialStatus={status} />;
+}
+
+export default function ToolsPage() {
+  const { t } = useTranslation();
+  return <Suspense fallback={<div className="loading-placeholder">{t('loading')}</div>}><ToolsWithQuery /></Suspense>;
 }

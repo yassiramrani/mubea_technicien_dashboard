@@ -19,7 +19,7 @@ export default function RootLayout({
         <Providers>
         <div className="app-container">
           <Sidebar />
-          <main className="main-content">
+          <main id="main-content" className="main-content" tabIndex={-1}>
             {children}
           </main>
         </div>

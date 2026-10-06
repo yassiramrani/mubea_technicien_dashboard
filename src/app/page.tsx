@@ -1,24 +1,33 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Activity, AlertTriangle, ArrowRight, Box, CheckCircle2, ClipboardList, Users, Wrench, Percent, FileText } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import {
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  Download,
+  Package,
+  QrCode,
+  RefreshCw,
+  Search,
+  Wrench,
+} from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  CartesianGrid,
+} from 'recharts';
 import { useTranslation } from '@/lib/LanguageContext';
-
-type RecentLog = {
-  id: string;
-  action: string;
-  createdAt: string;
-  technician: { name: string };
-  tool: { name: string };
-};
-
-type TrendData = {
-  date: string;
-  taken: number;
-  returned: number;
-};
+import { normalizeSearch } from '@/lib/inventoryFilters';
 
 type UnreturnedTool = {
   id: string;
@@ -27,226 +36,564 @@ type UnreturnedTool = {
   checkedOutAt: string | null;
   isOverdue: boolean;
 };
-
 type Stats = {
   totalTechnicians: number;
   totalTools: number;
   availableTools: number;
   assignedTools: number;
   todayLogs: number;
-  recentLogs: RecentLog[];
-  usageTrend?: TrendData[];
-  unreturnedTools?: UnreturnedTool[];
   totalLogs: number;
-  toolsByTechnician: { idNumber: string; name: string; toolCount: number; tools: string[] }[];
+  recentLogs: {
+    id: string;
+    action: string;
+    createdAt: string;
+    technician: { name: string };
+    tool: { name: string };
+  }[];
+  usageTrend?: { date: string; taken: number; returned: number }[];
+  unreturnedTools?: UnreturnedTool[];
+  toolsByTechnician: {
+    idNumber: string;
+    name: string;
+    toolCount: number;
+    tools: string[];
+  }[];
 };
-
-const initialStats: Stats = {
-  totalTechnicians: 0,
-  totalTools: 0,
-  availableTools: 0,
-  assignedTools: 0,
-  todayLogs: 0,
-  totalLogs: 0,
-  recentLogs: [],
-  usageTrend: [],
-  unreturnedTools: [],
-  toolsByTechnician: [],
-};
-
-const COLORS = ['#10b981', '#f59e0b']; // Available (green), Assigned (amber)
 
 export default function OverviewPage() {
   const { t, lang } = useTranslation();
-  const [stats, setStats] = useState<Stats>(initialStats);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [followupFilter, setFollowupFilter] = useState<'overdue' | 'all'>(
+    'overdue',
+  );
+  const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const response = await fetch('/api/stats');
-        if (!response.ok) throw new Error('Unable to load stats');
-        setStats(await response.json());
-      } catch {
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadStats();
+  const loadStats = useCallback(async () => {
+    const id = ++requestId.current;
+    setLoading(true);
+    try {
+      const response = await fetch('/api/stats', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Unable to load stats');
+      const data: Stats = await response.json();
+      if (id !== requestId.current) return;
+      setStats(data);
+      setError(false);
+      setUpdatedAt(new Date());
+    } catch {
+      if (id === requestId.current) setError(true);
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
   }, []);
 
-  const utilizationRate = stats.totalTools > 0 ? Math.round((stats.assignedTools / stats.totalTools) * 100) : 0;
+  useEffect(() => {
+    const requests = requestId;
+    const timer = window.setTimeout(() => void loadStats(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      requests.current++;
+    };
+  }, [loadStats]);
+
   const formatDate = (date: string) =>
-    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date));
-
-  const widgets = [
-    { label: t('technicians'), value: stats.totalTechnicians, icon: Users, color: '#dbeafe', iconColor: '#1e40af' },
-    { label: t('totalTools'), value: stats.totalTools, icon: Wrench, color: '#ede9fe', iconColor: '#6d28d9' },
-    { label: t('available'), value: stats.availableTools, icon: CheckCircle2, color: '#d1fae5', iconColor: '#047857' },
-    { label: t('assigned'), value: stats.assignedTools, icon: ClipboardList, color: '#fef3c7', iconColor: '#b45309' },
-    { label: t('utilization'), value: `${utilizationRate}%`, icon: Percent, color: '#e0e7ff', iconColor: '#4338ca' },
-    { label: t('activityToday'), value: stats.todayLogs, icon: Activity, color: '#fee2e2', iconColor: '#b91c1c' },
-    { label: t('totalMovements'), value: stats.totalLogs, icon: FileText, color: '#f3e8ff', iconColor: '#7e22ce' },
-  ];
-
-  const pieData = [
-    { name: t('available'), value: stats.availableTools },
-    { name: t('assigned'), value: stats.assignedTools }
+    new Intl.DateTimeFormat(lang, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Africa/Casablanca',
+    }).format(new Date(date));
+  const unreturned = stats?.unreturnedTools ?? [];
+  const overdueCount = unreturned.filter((tool) => tool.isOverdue).length;
+  const query = normalizeSearch(search).split(/\s+/).filter(Boolean);
+  const followupTools = unreturned
+    .filter((tool) => {
+      if (followupFilter === 'overdue' && !tool.isOverdue) return false;
+      const text = normalizeSearch(`${tool.name} ${tool.technicianName}`);
+      return query.every((word) => text.includes(word));
+    })
+    .sort((a, b) => {
+      const first = a.checkedOutAt
+        ? new Date(a.checkedOutAt).getTime()
+        : Infinity;
+      const second = b.checkedOutAt
+        ? new Date(b.checkedOutAt).getTime()
+        : Infinity;
+      return first === second
+        ? a.name.localeCompare(b.name, lang, { numeric: true })
+        : first < second
+          ? -1
+          : 1;
+    });
+  const utilization = stats?.totalTools
+    ? Math.round((stats.assignedTools / stats.totalTools) * 100)
+    : 0;
+  const exportFollowup = async () => {
+    setExporting(true);
+    setExportError(false);
+    try {
+      const { exportToExcel } = await import('@/lib/exportToExcel');
+      await exportToExcel(
+        followupTools.map((tool) => ({
+          [t('tool')]: tool.name,
+          [t('technician')]: tool.technicianName,
+          [t('checkedOut')]: tool.checkedOutAt
+            ? formatDate(tool.checkedOutAt)
+            : t('unknownDate'),
+          [t('status')]: t(tool.isOverdue ? 'overdue' : 'assigned'),
+        })),
+        'Mubea_Followup',
+      );
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
+  };
+  const summary = [
+    {
+      label: t('totalTools'),
+      value: stats?.totalTools,
+      icon: Package,
+      href: '/tools#inventory',
+      detail: t('inventoryOverview'),
+    },
+    {
+      label: t('available'),
+      value: stats?.availableTools,
+      icon: CheckCircle2,
+      href: '/tools?status=AVAILABLE#inventory',
+      detail: t('readyToUse'),
+    },
+    {
+      label: t('assigned'),
+      value: stats?.assignedTools,
+      icon: Wrench,
+      href: '/tools?status=ASSIGNED#inventory',
+      detail: t('currentlyCheckedOut'),
+    },
+    {
+      label: t('overdue'),
+      value: stats ? overdueCount : undefined,
+      icon: AlertTriangle,
+      href: '/tools?status=overdue#inventory',
+      detail: t('fromPreviousDays'),
+    },
   ];
 
   return (
     <div>
-      <h1 className="page-title">{t('overview')}</h1>
-
-      {error && <p className="card" style={{ marginBottom: '1.5rem', color: 'var(--danger)' }}>{t('unableLoadDashboard')}</p>}
-
-      <div className="widget-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-        {widgets.map(({ label, value, icon: Icon, color, iconColor }) => (
-          <div className="widget-card" key={label}>
-            <div className="widget-icon" style={{ backgroundColor: color, color: iconColor }}>
-              <Icon size={22} />
-            </div>
-            <div>
-              <div className="widget-value">{loading ? '-' : value}</div>
-              <div className="widget-label">{label}</div>
-            </div>
-          </div>
+      <header className="page-header">
+        <div>
+          <h1 className="page-title">{t('overview')}</h1>
+          <p className="page-description">{t('overviewDescription')}</p>
+          {updatedAt && (
+            <p className="refresh-note">
+              <Clock3 size={13} aria-hidden="true" /> {t('lastUpdated')}{' '}
+              {new Intl.DateTimeFormat(lang, {
+                timeStyle: 'short',
+                timeZone: 'Africa/Casablanca',
+              }).format(updatedAt)}
+            </p>
+          )}
+        </div>
+        <div className="header-actions">
+          <button
+            className="btn btn-outline"
+            onClick={() => void loadStats()}
+            disabled={loading}
+          >
+            <RefreshCw size={16} aria-hidden="true" /> {t('refresh')}
+          </button>
+          <Link className="btn btn-primary" href="/scanner">
+            <QrCode size={17} aria-hidden="true" /> {t('openScanner')}
+          </Link>
+        </div>
+      </header>
+      {error && (
+        <div className="error-banner" role="alert">
+          <span>
+            {t('unableLoadDashboard')}
+            {stats && ` ${t('showingLastLoaded')}`}
+          </span>
+          <button
+            className="btn btn-outline"
+            onClick={() => void loadStats()}
+            disabled={loading}
+          >
+            {t('retry')}
+          </button>
+        </div>
+      )}
+      <div className="summary-strip" aria-busy={loading}>
+        {summary.map(({ label, value, icon: Icon, href, detail }) => (
+          <Link className="summary-item" href={href} key={label}>
+            <span className="summary-label">
+              <Icon size={16} aria-hidden="true" />
+              {label}
+            </span>
+            <strong
+              className={`summary-value${label === t('overdue') && overdueCount > 0 ? ' text-danger' : ''}`}
+            >
+              {value === undefined ? '—' : value.toLocaleString(lang)}
+            </strong>
+            <p className="summary-detail">{detail}</p>
+          </Link>
         ))}
       </div>
 
-      <div className="overview-columns" style={{ marginTop: '1.5rem' }}>
-        <section className="card">
-          <h3 style={{ marginBottom: '1rem' }}>{t('toolStatusDistribution')}</h3>
-          {loading ? <p className="text-muted">{t('loading')}</p> : (
-            <div style={{ height: 250 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
+      <div className="workspace-grid">
+        <section
+          className="card"
+          aria-labelledby="followup-title"
+          aria-busy={loading}
+        >
+          <div className="section-heading">
+            <div>
+              <h2 id="followup-title">{t('returnFollowup')}</h2>
+              <p>{t('followupDescription')}</p>
+            </div>
+            <button
+              className="btn btn-outline"
+              onClick={() => void exportFollowup()}
+              disabled={
+                !stats || loading || error || !followupTools.length || exporting
+              }
+            >
+              <Download size={15} aria-hidden="true" />
+              {t(exporting ? 'exporting' : 'exportList')}
+            </button>
+          </div>
+          <div className="filter-tabs" aria-label={t('followupFilter')}>
+            <button
+              className="filter-tab"
+              aria-pressed={followupFilter === 'overdue'}
+              onClick={() => setFollowupFilter('overdue')}
+            >
+              {t('overdue')} <span>{stats ? overdueCount : '—'}</span>
+            </button>
+            <button
+              className="filter-tab"
+              aria-pressed={followupFilter === 'all'}
+              onClick={() => setFollowupFilter('all')}
+            >
+              {t('allAssigned')} <span>{stats ? unreturned.length : '—'}</span>
+            </button>
+          </div>
+          <div className="inventory-toolbar">
+            <div className="form-group search-field">
+              <label htmlFor="followup-search" className="form-label">
+                {t('searchFollowup')}
+              </label>
+              <div className="search-input-wrap">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  id="followup-search"
+                  type="search"
+                  className="form-input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('followupSearchPlaceholder')}
+                />
+              </div>
+            </div>
+          </div>
+          {exportError && (
+            <p className="form-error" role="alert">
+              {t('exportFailed')}
+            </p>
+          )}
+          {!stats ? (
+            <div className="loading-placeholder">
+              {t(loading ? 'loading' : 'unableLoadDashboard')}
+            </div>
+          ) : followupTools.length === 0 ? (
+            <div className="empty-state">
+              <CheckCircle2 size={28} aria-hidden="true" />
+              <strong>
+                {t(
+                  search
+                    ? 'noMatchingTools'
+                    : followupFilter === 'overdue'
+                      ? 'noOverdueTools'
+                      : 'allMaterialsReturned',
+                )}
+              </strong>
+              <p>{t(search ? 'tryDifferentFilters' : 'followupEmptyHint')}</p>
+              {search && (
+                <button
+                  className="btn btn-outline"
+                  onClick={() => setSearch('')}
+                >
+                  {t('clearSearch')}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div
+              className="table-scroll followup-scroll"
+              role="region"
+              aria-label={t('returnFollowup')}
+              tabIndex={0}
+            >
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('tool')}</th>
+                    <th scope="col">{t('technician')}</th>
+                    <th scope="col">{t('checkedOut')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {followupTools.map((tool) => (
+                    <tr key={tool.id}>
+                      <td>
+                        <Link
+                          className="text-link"
+                          href={`/tools?search=${encodeURIComponent(tool.name)}#inventory`}
+                        >
+                          {tool.name}
+                        </Link>
+                        <div>
+                          {tool.isOverdue && (
+                            <span className="badge badge-danger">
+                              {t('overdue')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>{tool.technicianName}</td>
+                      <td>
+                        {tool.checkedOutAt
+                          ? formatDate(tool.checkedOutAt)
+                          : t('unknownDate')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
+          <div className="section-heading inventory-jump">
+            <p aria-live="polite">
+              {stats &&
+                t('followupCount').replace(
+                  '{count}',
+                  String(followupTools.length),
+                )}
+            </p>
+            <Link href="/tools?status=overdue#inventory" className="text-link">
+              {t('openInventory')}
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
         </section>
+        <section className="card" aria-labelledby="activity-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="activity-title">{t('recentActivity')}</h2>
+              <p>
+                {t('activityToday')}: {stats?.todayLogs ?? '—'}
+              </p>
+            </div>
+            <Link className="text-link" href="/logs">
+              {t('viewAll')}
+              <ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
+          {!stats ? (
+            <div className="loading-placeholder">
+              {t(loading ? 'loading' : 'unableLoadDashboard')}
+            </div>
+          ) : stats.recentLogs.length === 0 ? (
+            <div className="empty-state">{t('noActivity')}</div>
+          ) : (
+            stats.recentLogs.slice(0, 6).map((log) => (
+              <div className="activity-row" key={log.id}>
+                <div className="activity-symbol">
+                  {log.action === 'TAKEN' ? (
+                    <ArrowUpRight size={17} aria-hidden="true" />
+                  ) : (
+                    <ArrowDownLeft size={17} aria-hidden="true" />
+                  )}
+                </div>
+                <div className="activity-content">
+                  <strong>{log.tool.name}</strong>
+                  <p>
+                    {t(log.action === 'TAKEN' ? 'taken' : 'returned')} ·{' '}
+                    {log.technician.name}
+                  </p>
+                </div>
+                <time
+                  dateTime={log.createdAt}
+                  title={formatDate(log.createdAt)}
+                >
+                  {new Intl.DateTimeFormat(lang, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Africa/Casablanca',
+                  }).format(new Date(log.createdAt))}
+                </time>
+              </div>
+            ))
+          )}
+        </section>
+      </div>
 
-        <section className="card">
-          <h3 style={{ marginBottom: '1rem' }}>{t('sevenDayTrend')}</h3>
-          {loading ? <p className="text-muted">{t('loading')}</p> : (
-            <div style={{ height: 250 }}>
+      <div className="workspace-grid">
+        <section className="card" aria-labelledby="trend-title">
+          <div className="section-heading">
+            <div>
+              <h2 id="trend-title">{t('sevenDayTrend')}</h2>
+              <p>{t('trendDescription')}</p>
+            </div>
+          </div>
+          {!stats ? (
+            <div className="loading-placeholder">
+              {t(loading ? 'loading' : 'unableLoadDashboard')}
+            </div>
+          ) : (
+            <div className="chart-container">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.usageTrend || []}>
-                  <XAxis dataKey="date" tick={{fontSize: 12}} />
-                  <YAxis allowDecimals={false} tick={{fontSize: 12}} />
+                <BarChart
+                  data={stats.usageTrend ?? []}
+                  margin={{ left: -20, right: 10, top: 10 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#e2e8f0"
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip />
-                  <Legend />
-                  <Bar dataKey="taken" name={t('taken')} fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="returned" name={t('returned')} fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar
+                    dataKey="taken"
+                    name={t('taken')}
+                    fill="#0055a4"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={25}
+                    isAnimationActive={false}
+                  />
+                  <Bar
+                    dataKey="returned"
+                    name={t('returned')}
+                    fill="#087f5b"
+                    radius={[3, 3, 0, 0]}
+                    maxBarSize={25}
+                    isAnimationActive={false}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
         </section>
-      </div>
-
-      <div className="overview-columns" style={{ marginTop: '1.5rem' }}>
-        <section className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3>Recent Activity</h3>
-            <Link href="/logs" className="btn btn-outline">
-              View all <ArrowRight size={16} />
-            </Link>
+        <section className="card" aria-labelledby="stock-title">
+          <div className="section-heading">
+            <h2 id="stock-title">{t('toolStatusDistribution')}</h2>
+            <span className="badge badge-info">
+              {stats ? `${utilization}%` : '—'} {t('utilization')}
+            </span>
           </div>
-          {loading ? <p className="text-muted">{t('loading')}</p> : stats.recentLogs.length === 0 ? <p className="text-muted">{t('noActivity')}</p> : (
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {stats.recentLogs.map((log) => (
-                <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                  <div>
-                    <strong>{log.technician.name}</strong>
-                    <div className="text-muted" style={{ fontSize: '0.875rem' }}>{log.action === 'TAKEN' ? t('taken') : t('returned')} {log.tool.name}</div>
-                  </div>
-                  <time className="text-muted" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }} dateTime={log.createdAt}>{formatDate(log.createdAt)}</time>
-                </div>
-              ))}
+          {!stats ? (
+            <div className="loading-placeholder">
+              {t(loading ? 'loading' : 'unableLoadDashboard')}
             </div>
+          ) : (
+            <>
+              <div className="stock-bar" aria-hidden="true">
+                <div
+                  className="stock-bar-available"
+                  style={{
+                    width: `${stats.totalTools ? (stats.availableTools / stats.totalTools) * 100 : 0}%`,
+                  }}
+                />
+                <div
+                  className="stock-bar-assigned"
+                  style={{ width: `${utilization}%` }}
+                />
+              </div>
+              <div className="stock-legend">
+                <div>
+                  <strong>{stats.availableTools}</strong>
+                  <span>{t('available')}</span>
+                </div>
+                <div>
+                  <strong>{stats.assignedTools}</strong>
+                  <span>{t('assigned')}</span>
+                </div>
+              </div>
+              <div className="mini-stats">
+                <div>
+                  <strong>{stats.totalTechnicians}</strong>
+                  <span>{t('technicians')}</span>
+                </div>
+                <div>
+                  <strong>{stats.totalLogs.toLocaleString(lang)}</strong>
+                  <span>{t('totalMovements')}</span>
+                </div>
+              </div>
+            </>
           )}
         </section>
-
-        <section className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3>Top Active Technicians</h3>
-            <Link href="/technicians" className="btn btn-outline">
-              Manage <ArrowRight size={16} />
-            </Link>
+      </div>
+      <section className="card" aria-labelledby="technicians-title">
+        <div className="section-heading">
+          <h2 id="technicians-title">{t('topActiveTechnicians')}</h2>
+          <Link className="text-link" href="/technicians">
+            {t('viewAll')}
+            <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+        </div>
+        {!stats ? (
+          <div className="loading-placeholder">
+            {t(loading ? 'loading' : 'unableLoadDashboard')}
           </div>
-          {loading ? <p className="text-muted">{t('loading')}</p> : stats.toolsByTechnician.length === 0 ? <p className="text-muted">{t('noTechniciansFound')}</p> : (
+        ) : stats.toolsByTechnician.length === 0 ? (
+          <p className="empty-state">{t('noTechniciansFound')}</p>
+        ) : (
+          <div className="table-scroll">
             <table className="data-table">
               <thead>
-                <tr><th>{t('technician')}</th><th>{t('assignedTools')}</th></tr>
+                <tr>
+                  <th scope="col">{t('technician')}</th>
+                  <th scope="col">{t('idNumber')}</th>
+                  <th scope="col">{t('assignedTools')}</th>
+                </tr>
               </thead>
               <tbody>
                 {stats.toolsByTechnician.slice(0, 5).map((technician) => (
                   <tr key={technician.idNumber}>
-                    <td><strong>{technician.name}</strong><div className="text-muted" style={{ fontSize: '0.75rem' }}>{technician.idNumber}</div></td>
-                    <td><span className="badge badge-info">{technician.toolCount}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      </div>
-
-      <div className="card" style={{ marginTop: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3>Unreturned Materials</h3>
-          <Link href="/tools" className="btn btn-outline">
-            View Tools <ArrowRight size={16} />
-          </Link>
-        </div>
-        {loading ? <p className="text-muted">{t('loading')}</p> : (!stats.unreturnedTools || stats.unreturnedTools.length === 0) ? <p className="text-muted">{t('allMaterialsReturned')}</p> : (
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 1 }}>{t('materialName')}</th>
-                  <th style={{ position: 'sticky', top: 0, zIndex: 1 }}>{t('technician')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.unreturnedTools.map((tool) => (
-                  <tr key={tool.id} className={tool.isOverdue ? 'tool-overdue-row' : undefined}>
                     <td>
-                      <strong>{tool.name}</strong>
-                      {tool.isOverdue && (
-                        <span className="badge badge-danger" style={{ marginLeft: '0.5rem' }}>
-                          <AlertTriangle size={12} aria-hidden="true" />
-                          {t('overdue')}
-                        </span>
-                      )}
+                      <Link
+                        className="text-link"
+                        href={`/tools?search=${encodeURIComponent(technician.idNumber)}&status=ASSIGNED#inventory`}
+                      >
+                        {technician.name}
+                      </Link>
                     </td>
+                    <td>{technician.idNumber}</td>
                     <td>
-                      {tool.technicianName}
-                      {tool.isOverdue && tool.checkedOutAt && (
-                        <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                          {t('checkedOut')}: {formatDate(tool.checkedOutAt)}
-                        </div>
-                      )}
+                      <span className="badge badge-info">
+                        {technician.toolCount}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -254,15 +601,7 @@ export default function OverviewPage() {
             </table>
           </div>
         )}
-      </div>
-
-      <div className="card" style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Box size={22} color="var(--primary)" />
-          <div><h3>Need to check a tool?</h3><p className="text-muted">Scan a QR code to assign or return equipment.</p></div>
-        </div>
-        <Link href="/scanner" className="btn btn-primary">Open scanner</Link>
-      </div>
+      </section>
     </div>
   );
 }

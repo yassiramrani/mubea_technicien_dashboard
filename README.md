@@ -13,6 +13,18 @@ npm run dev
 
 Build the production bundle with `npm run build`.
 
+## Inventory search and return follow-up
+
+- Search tools by name, label code, technician name or ID. Search ignores accents and combines words.
+- Filter by availability, assignment, overdue status and label printing status. Sort by name, oldest checkout or usage count.
+- Browse 25, 50 or 100 tools per page. Select-all applies to the current page; changing search or filters clears the selection. The selection count includes other pages.
+- Export results includes all matching tools across pages, with their assignment, checkout date and overdue status.
+- The overview starts with overdue returns, sorted by checkout time. Search by tool or technician, switch to all assigned tools, or export the follow-up list.
+- Use the scanner to record a return. Refresh the overview to load the latest assignments. Checkout dates use the workshop’s Casablanca timezone.
+- Label printing, adding tools and Pareto analysis remain available in expandable sections on the inventory page.
+
+Run `npm test` for inventory filtering and sorting checks (Node.js 22.18+ or 24+).
+
 ## Profiles
 
 Signing in takes a profile and its access code. The profile decides what the session may do.
