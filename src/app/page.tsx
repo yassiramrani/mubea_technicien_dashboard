@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -28,6 +28,11 @@ import {
 } from 'recharts';
 import { useTranslation } from '@/lib/LanguageContext';
 import { normalizeSearch } from '@/lib/inventoryFilters';
+import {
+  buildPurchaseGuide,
+  type GuideEntry,
+  type GuideVerdict,
+} from '@/lib/purchaseGuide';
 
 type UnreturnedTool = {
   id: string;
@@ -52,6 +57,12 @@ type Stats = {
   }[];
   usageTrend?: { date: string; taken: number; returned: number }[];
   unreturnedTools?: UnreturnedTool[];
+  toolUsage?: {
+    id: string;
+    name: string;
+    status: string;
+    usageCount: number;
+  }[];
   toolsByTechnician: {
     idNumber: string;
     name: string;
@@ -59,6 +70,55 @@ type Stats = {
     tools: string[];
   }[];
 };
+
+// How each buying-guide verdict is presented: chip colour plus translated label.
+const VERDICT_CHIP: Record<GuideVerdict, string> = {
+  order: 'badge-warning',
+  watch: 'badge-info',
+  rarely: 'badge-muted',
+  never: 'badge-muted',
+};
+const VERDICT_LABEL: Record<
+  GuideVerdict,
+  'guideOrder' | 'guideWatch' | 'guideRarely' | 'guideNever'
+> = {
+  order: 'guideOrder',
+  watch: 'guideWatch',
+  rarely: 'guideRarely',
+  never: 'guideNever',
+};
+
+function GuideList({ entries, emptyText }: { entries: GuideEntry[]; emptyText: string }) {
+  const { t, lang } = useTranslation();
+
+  if (entries.length === 0) {
+    return <p className="text-muted guide-empty">{emptyText}</p>;
+  }
+
+  return (
+    <ul className="guide-list">
+      {entries.map((entry) => (
+        <li className="guide-row" key={entry.id}>
+          <div className="guide-head">
+            <Link
+              className="text-link"
+              href={`/tools?search=${encodeURIComponent(entry.name)}#inventory`}
+            >
+              {entry.name}
+            </Link>
+            <span className={`badge ${VERDICT_CHIP[entry.verdict]}`}>
+              {t(VERDICT_LABEL[entry.verdict])}
+            </span>
+          </div>
+          <p className="guide-detail">
+            {entry.uses.toLocaleString(lang)} {t('uses')}
+            {entry.out ? ` · ${t('guideOut')}` : ''}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function OverviewPage() {
   const { t, lang } = useTranslation();
@@ -132,6 +192,10 @@ export default function OverviewPage() {
   const utilization = stats?.totalTools
     ? Math.round((stats.assignedTools / stats.totalTools) * 100)
     : 0;
+  const guide = useMemo(
+    () => buildPurchaseGuide(stats?.toolUsage ?? [], 5, lang),
+    [stats, lang],
+  );
   const exportFollowup = async () => {
     setExporting(true);
     setExportError(false);
@@ -591,6 +655,36 @@ export default function OverviewPage() {
           )}
         </section>
       </div>
+      <section className="card" aria-labelledby="guide-title">
+        <div className="section-heading">
+          <div>
+            <h2 id="guide-title">{t('buyingGuide')}</h2>
+            <p>{t('buyingGuideDesc')}</p>
+          </div>
+        </div>
+        {!stats ? (
+          <div className="loading-placeholder">
+            {t(loading ? 'loading' : 'unableLoadDashboard')}
+          </div>
+        ) : (
+          <div className="guide-grid">
+            <div>
+              <h3 className="guide-heading">{t('mostUsed')}</h3>
+              <GuideList
+                entries={guide.mostUsed}
+                emptyText={t('noUsageData')}
+              />
+            </div>
+            <div>
+              <h3 className="guide-heading">{t('leastUsed')}</h3>
+              <GuideList
+                entries={guide.leastUsed}
+                emptyText={t('noUsageData')}
+              />
+            </div>
+          </div>
+        )}
+      </section>
       <section className="card" aria-labelledby="technicians-title">
         <div className="section-heading">
           <h2 id="technicians-title">{t('topActiveTechnicians')}</h2>

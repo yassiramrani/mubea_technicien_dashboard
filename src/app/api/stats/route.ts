@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       logsLast7Days,
       unreturnedTools,
       totalLogs,
+      toolsWithUsage,
     ] = await Promise.all([
       prisma.technician.count(),
       prisma.tool.count(),
@@ -66,6 +67,14 @@ export async function GET(request: NextRequest) {
         orderBy: { name: 'asc' },
       }),
       prisma.log.count(),
+      prisma.tool.findMany({
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          _count: { select: { logs: true } },
+        },
+      }),
     ]);
 
     const usageTrend = Array.from({ length: 7 }).map((_, i) => {
@@ -92,6 +101,10 @@ export async function GET(request: NextRequest) {
       todayLogs,
       recentLogs,
       usageTrend,
+      toolUsage: toolsWithUsage.map(({ _count, ...tool }) => ({
+        ...tool,
+        usageCount: _count.logs,
+      })),
       unreturnedTools: unreturnedTools.map(({ logs, ...tool }) => ({
         id: tool.id,
         name: tool.name,

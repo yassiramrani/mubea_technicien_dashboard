@@ -33,3 +33,6 @@ test('a pending-label filter includes both available and assigned tools', () => 
   assert.deepEqual(view({label:'pending'}).map(t=>t.id), ['a','d']);
   assert.deepEqual(filterInventory([], {search:'',status:'all',label:'all',sort:'name',lang:'fr'}), []);
 });
+test('least used sorting puts the unused tools first, still ending with the busiest', () => {
+  assert.deepEqual(view({sort:'leastUsed'}).map(t=>t.id), ['d','a','b','c']);
+});

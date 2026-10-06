@@ -1,5 +1,5 @@
 export type InventoryStatus = 'all' | 'AVAILABLE' | 'ASSIGNED' | 'overdue';
-export type InventorySort = 'name' | 'oldest' | 'usage';
+export type InventorySort = 'name' | 'oldest' | 'usage' | 'leastUsed';
 export type LabelFilter = 'all' | 'pending' | 'printed';
 
 type SearchableTool = {
@@ -64,6 +64,8 @@ export function filterInventory<T extends SearchableTool>(
     .sort((a, b) => {
       if (sort === 'usage' && a.usageCount !== b.usageCount)
         return b.usageCount - a.usageCount;
+      if (sort === 'leastUsed' && a.usageCount !== b.usageCount)
+        return a.usageCount - b.usageCount;
       if (sort === 'oldest') {
         const checkedOut = (tool: T) =>
           tool.status === 'ASSIGNED' && tool.checkedOutAt
