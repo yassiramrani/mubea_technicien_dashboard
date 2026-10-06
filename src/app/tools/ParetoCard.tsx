@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -14,15 +15,12 @@ import {
   YAxis,
 } from 'recharts';
 import { useTranslation } from '@/lib/LanguageContext';
-
-type ParetoTool = {
-  name: string;
-  usageCount: number;
-};
+import { buildPareto, PARETO_TARGET_SHARE, type ParetoSource } from '@/lib/pareto';
 
 const BAR_COLOR = '#0055A4'; // Mubea blue
 const CUMULATIVE_COLOR = '#f59e0b';
-const TARGET_SHARE = 80;
+const OVERDUE_COLOR = '#c23535'; // Same red as the overdue badges
+const TARGET_SHARE = PARETO_TARGET_SHARE;
 
 // How many individual bars are shown before the rest is grouped into "Other tools".
 const LIMIT_OPTIONS = [10, 15, 20];
@@ -32,49 +30,18 @@ const LIMIT_OPTIONS = [10, 15, 20];
  * scans (descending) and the line tracks the cumulative share of all activity.
  * The 80% reference line marks the "vital few" tools that drive most of the
  * daily work - the classic 80/20 view a manager asks for.
+ *
+ * Tools with an outstanding overdue return are drawn as red bars, so the risky
+ * equipment inside the busiest tools is visible at a glance.
  */
-export default function ParetoCard({ tools, loading }: { tools: ParetoTool[]; loading?: boolean }) {
+export default function ParetoCard({ tools, loading }: { tools: ParetoSource[]; loading?: boolean }) {
   const { t } = useTranslation();
   const [limit, setLimit] = useState(15);
 
-  const analysis = useMemo(() => {
-    const ranked = tools
-      .filter((tool) => tool.usageCount > 0)
-      .sort((a, b) => b.usageCount - a.usageCount);
-    const totalUses = ranked.reduce((sum, tool) => sum + tool.usageCount, 0);
-
-    // "Vital few": number of most-used tools needed to cover 80% of all scans.
-    let vitalFew = 0;
-    let running = 0;
-    for (const tool of ranked) {
-      running += tool.usageCount;
-      vitalFew += 1;
-      if (running / totalUses >= TARGET_SHARE / 100) break;
-    }
-
-    const shown = limit > 0 ? ranked.slice(0, limit) : ranked;
-    const rest = ranked.slice(shown.length);
-
-    const rows = shown.map((tool) => ({ name: tool.name, uses: tool.usageCount }));
-    if (rest.length > 0) {
-      rows.push({
-        name: t('paretoOthers').replace('{count}', String(rest.length)),
-        uses: rest.reduce((sum, tool) => sum + tool.usageCount, 0),
-      });
-    }
-
-    let cumulativeUses = 0;
-    const data: { name: string; uses: number; cumulative: number }[] = [];
-    for (const row of rows) {
-      cumulativeUses += row.uses;
-      data.push({
-        ...row,
-        cumulative: totalUses > 0 ? Math.round((cumulativeUses / totalUses) * 1000) / 10 : 0,
-      });
-    }
-
-    return { data, totalUses, vitalFew };
-  }, [tools, limit, t]);
+  const analysis = useMemo(
+    () => buildPareto(tools, limit, t('paretoOthers')),
+    [tools, limit, t],
+  );
 
   const inventoryShare = tools.length > 0 ? Math.round((analysis.vitalFew / tools.length) * 100) : 0;
 
@@ -148,10 +115,16 @@ export default function ParetoCard({ tools, loading }: { tools: ParetoTool[]; lo
                   yAxisId="left"
                   dataKey="uses"
                   name={t('uses')}
-                  fill={BAR_COLOR}
                   radius={[4, 4, 0, 0]}
                   maxBarSize={48}
-                />
+                >
+                  {analysis.data.map((row) => (
+                    <Cell
+                      key={row.name}
+                      fill={row.overdue ? OVERDUE_COLOR : BAR_COLOR}
+                    />
+                  ))}
+                </Bar>
                 <Line
                   yAxisId="right"
                   type="monotone"
@@ -165,6 +138,10 @@ export default function ParetoCard({ tools, loading }: { tools: ParetoTool[]; lo
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          <p className="pareto-note">
+            <span className="legend-dot dot-overdue" aria-hidden="true" />
+            {t('paretoOverdueNote')}
+          </p>
         </>
       )}
     </div>

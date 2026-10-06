@@ -161,6 +161,7 @@ export default function OverviewPage() {
       icon: Package,
       href: '/tools#inventory',
       detail: t('inventoryOverview'),
+      accent: 'primary',
     },
     {
       label: t('available'),
@@ -168,6 +169,7 @@ export default function OverviewPage() {
       icon: CheckCircle2,
       href: '/tools?status=AVAILABLE#inventory',
       detail: t('readyToUse'),
+      accent: 'success',
     },
     {
       label: t('assigned'),
@@ -175,6 +177,7 @@ export default function OverviewPage() {
       icon: Wrench,
       href: '/tools?status=ASSIGNED#inventory',
       detail: t('currentlyCheckedOut'),
+      accent: 'assigned',
     },
     {
       label: t('overdue'),
@@ -182,6 +185,7 @@ export default function OverviewPage() {
       icon: AlertTriangle,
       href: '/tools?status=overdue#inventory',
       detail: t('fromPreviousDays'),
+      accent: 'danger',
     },
   ];
 
@@ -230,8 +234,12 @@ export default function OverviewPage() {
         </div>
       )}
       <div className="summary-strip" aria-busy={loading}>
-        {summary.map(({ label, value, icon: Icon, href, detail }) => (
-          <Link className="summary-item" href={href} key={label}>
+        {summary.map(({ label, value, icon: Icon, href, detail, accent }) => (
+          <Link
+            className={`summary-item accent-${accent}${accent === 'danger' && overdueCount > 0 ? ' alert' : ''}`}
+            href={href}
+            key={label}
+          >
             <span className="summary-label">
               <Icon size={16} aria-hidden="true" />
               {label}
@@ -350,7 +358,10 @@ export default function OverviewPage() {
                 </thead>
                 <tbody>
                   {followupTools.map((tool) => (
-                    <tr key={tool.id}>
+                    <tr
+                      key={tool.id}
+                      className={tool.isOverdue ? 'tool-overdue-row' : undefined}
+                    >
                       <td>
                         <Link
                           className="text-link"
@@ -414,7 +425,9 @@ export default function OverviewPage() {
           ) : (
             stats.recentLogs.slice(0, 6).map((log) => (
               <div className="activity-row" key={log.id}>
-                <div className="activity-symbol">
+                <div
+                  className={`activity-symbol${log.action === 'TAKEN' ? ' activity-symbol-taken' : ' activity-symbol-returned'}`}
+                >
                   {log.action === 'TAKEN' ? (
                     <ArrowUpRight size={17} aria-hidden="true" />
                   ) : (
@@ -528,17 +541,41 @@ export default function OverviewPage() {
                 <div
                   className="stock-bar-assigned"
                   style={{ width: `${utilization}%` }}
-                />
+                >
+                  {overdueCount > 0 && stats.assignedTools > 0 && (
+                    <div
+                      className="stock-bar-overdue"
+                      style={{
+                        width: `${(overdueCount / stats.assignedTools) * 100}%`,
+                      }}
+                    />
+                  )}
+                </div>
               </div>
               <div className="stock-legend">
                 <div>
                   <strong>{stats.availableTools}</strong>
-                  <span>{t('available')}</span>
+                  <span>
+                    <i className="legend-dot dot-available" aria-hidden="true" />
+                    {t('available')}
+                  </span>
                 </div>
                 <div>
                   <strong>{stats.assignedTools}</strong>
-                  <span>{t('assigned')}</span>
+                  <span>
+                    <i className="legend-dot dot-assigned" aria-hidden="true" />
+                    {t('assigned')}
+                  </span>
                 </div>
+                {overdueCount > 0 && (
+                  <div>
+                    <strong>{overdueCount}</strong>
+                    <span>
+                      <i className="legend-dot dot-overdue" aria-hidden="true" />
+                      {t('overdue')}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="mini-stats">
                 <div>

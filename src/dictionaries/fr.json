@@ -182,6 +182,7 @@
   "paretoCumulative": "Part cumulée",
   "paretoVitalFew": "{count} outil(s) couvrent 80 % des utilisations enregistrées ({percent} % de l'inventaire).",
   "paretoNoData": "Aucun outil n'a encore été scanné - l'analyse de Pareto apparaîtra dès que l'activité sera enregistrée.",
+  "paretoOverdueNote": "Les barres rouges signalent un outil dont le retour est en retard ; la ligne rouge pointillée marque l'objectif de 80 %.",
 
   "signInTitle": "Accès à l'inventaire",
   "signInSubtitle": "Identifiez-vous pour continuer.",

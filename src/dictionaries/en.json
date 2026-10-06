@@ -182,6 +182,7 @@
   "paretoCumulative": "Cumulative share",
   "paretoVitalFew": "{count} tool(s) cover 80% of all recorded uses ({percent}% of the inventory).",
   "paretoNoData": "No tool has been scanned yet - the Pareto analysis will appear as soon as activity is recorded.",
+  "paretoOverdueNote": "Red bars mark tools whose return is overdue; the dashed red line is the 80% target.",
 
   "signInTitle": "Access to the inventory",
   "signInSubtitle": "Identify yourself to continue.",

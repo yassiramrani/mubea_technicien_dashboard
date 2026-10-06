@@ -284,8 +284,13 @@ h1, h2, h3 {
   color: #991b1b;
 }
 
+/* An overdue row reads as a warning: red tint plus a red edge on the first cell. */
 .data-table tbody tr.tool-overdue-row > td {
-  background-color: #fff7ed;
+  background-color: #fef2f2;
+}
+
+.data-table tbody tr.tool-overdue-row > td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger);
 }
 
 /* Scanner */
@@ -454,6 +459,18 @@ h1, h2, h3 {
 .summary-value { display: block; margin-top: 0.5rem; font-size: 1.8rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; }
 .summary-detail { color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem; }
 .text-danger { color: #a32929; }
+/* Colour-coded KPI strip: one accent per metric, red reserved for overdue. */
+.summary-label svg { box-sizing: content-box; padding: 5px; border-radius: 8px; }
+.summary-item.accent-primary { box-shadow: inset 0 3px 0 var(--primary); }
+.summary-item.accent-primary .summary-label svg { background: #e3eef8; color: var(--primary); }
+.summary-item.accent-success { box-shadow: inset 0 3px 0 var(--success); }
+.summary-item.accent-success .summary-label svg { background: #d1fae5; color: #065f46; }
+.summary-item.accent-assigned { box-shadow: inset 0 3px 0 #c78c20; }
+.summary-item.accent-assigned .summary-label svg { background: #fdf1d8; color: #8a5a12; }
+.summary-item.accent-danger { box-shadow: inset 0 3px 0 var(--danger); }
+.summary-item.accent-danger .summary-label svg { background: #fee2e2; color: #991b1b; }
+.summary-item.accent-danger.alert { background: #fef2f2; }
+.summary-item.accent-danger.alert:hover { background: #fbe6e6; }
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(270px, 1fr); gap: 1.5rem; margin-bottom: 1.5rem; }
 .workspace-grid > * { min-width: 0; }
 .inventory-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; margin: 1rem 0; }
@@ -489,7 +506,15 @@ h1, h2, h3 {
 .loading-placeholder { background: #edf1f5; min-height: 160px; border-radius: 8px; display: grid; place-items: center; color: var(--text-muted); font-size: 0.875rem; }
 .stock-bar { height: 12px; margin: 1.25rem 0; display: flex; border-radius: 4px; overflow: hidden; background: #edf1f5; }
 .stock-bar-available { background: #087f5b; }
-.stock-bar-assigned { background: #c78c20; }
+.stock-bar-assigned { display: flex; justify-content: flex-end; background: #c78c20; }
+.stock-bar-overdue { height: 100%; background: var(--danger); }
+.legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.4rem; }
+.dot-available { background: #087f5b; }
+.dot-assigned { background: #c78c20; }
+.dot-overdue { background: var(--danger); }
+.pareto-note { display: flex; align-items: center; margin-top: 0.9rem; font-size: 0.75rem; color: var(--text-muted); }
+.activity-symbol-taken { background: #e3eef8; color: var(--primary); }
+.activity-symbol-returned { background: #d1fae5; color: #087f5b; }
 .stock-legend { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.85rem; }
 .stock-legend strong { display: block; font-variant-numeric: tabular-nums; }
 .stock-legend span { font-size: 0.75rem; color: var(--text-muted); }
