@@ -84,3 +84,11 @@ Setting it to `true` serves each section only to the profiles listed in `ROLE_SE
 administrators everywhere, technicians and identification profiles on the scanner. The guard is
 already wired into `/api/stats`, `/api/logs`, `/api/technicians` and `/api/tools`; the pages keep
 rendering and simply show no data, because they read those endpoints.
+
+## Running on a company server
+
+The application runs today on Vercel with its data in a Supabase database. To install it on an
+internal Mubea server instead — Windows Server, Node.js, PostgreSQL, IIS in front for HTTPS —
+follow [docs/INTERNAL_DEPLOYMENT.md](docs/INTERNAL_DEPLOYMENT.md). It contains the request to
+send to IT, the exact installation commands, the data migration from Supabase and the
+verification checklist. `.env.example` lists every configuration value the deployment needs.
