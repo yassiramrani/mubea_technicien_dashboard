@@ -1,8 +1,9 @@
-# Running the Mubea Maintenance Inventory on a company server
+# Running Mubea Workshop Tool Tracking on a company server
 
 **Audience:** Mubea IT (with Management for the hostname and certificate decision).
-**Application:** Mubea Maintenance Inventory (the Technicien Dashboard) — tools inventory, barcode
-labels, guided scanning, usage analysis and the buying guide.
+**Application:** Mubea Workshop Tool Tracking (the Technicien Dashboard) — shared workshop tooling,
+barcode labels, guided scanning, usage analysis and the buying guide. It follows tool issue and
+return only; it does not manage PM orders or spare parts.
 **Today:** the application runs on Vercel and stores its data in a Supabase PostgreSQL database.
 Both are outside the company network. This document is what is needed to run the same
 application on a Mubea server, with no external dependency at runtime.
@@ -13,8 +14,8 @@ application on a Mubea server, with no external dependency at runtime.
 
 > Hello,
 >
-> I would like to install the **Mubea Maintenance Inventory** application (tools inventory,
-> barcode scanning) on an internal Mubea server. The application is already in service on
+> I would like to install the **Mubea Workshop Tool Tracking** application (shared workshop
+> tooling, barcode scanning) on an internal Mubea server. The application is already in service on
 > Vercel; this moves it inside the company network and removes the external hosting.
 >
 > To install it, we need:

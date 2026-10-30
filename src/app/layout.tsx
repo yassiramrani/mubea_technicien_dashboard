@@ -4,8 +4,9 @@ import Providers from './Providers'
 import Sidebar from './Sidebar'
 
 export const metadata: Metadata = {
-  title: 'Mubea Maintenance Inventory',
-  description: 'Mubea Maintenance Inventory: manage technicians, tools, labels and reports',
+  title: 'Mubea Workshop Tool Tracking',
+  description:
+    'Mubea Workshop Tool Tracking: follow which workshop tool is out, who has it and since when',
 }
 
 export default function RootLayout({

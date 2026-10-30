@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "========================================="
-echo "  Mubea Maintaining Inventory"
+echo "  Mubea Workshop Tool Tracking"
 echo "========================================="
 echo ""
 

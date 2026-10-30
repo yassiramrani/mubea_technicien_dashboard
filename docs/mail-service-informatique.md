@@ -2,7 +2,7 @@ Objet : Déploiement de l'application d'inventaire de l'outillage sur un serveur
 
 Bonjour,
 
-Je souhaite installer l'application « Mubea Maintenance Inventory » (inventaire de l'outillage, étiquettes et scan par QR code) sur un serveur interne de l'entreprise. Elle fonctionne aujourd'hui sur Vercel avec une base Supabase, hors du réseau. Voici ce dont l'installation a besoin :
+Je souhaite installer l'application « Mubea Workshop Tool Tracking » (suivi des sorties et retours de l'outillage, étiquettes et scan par QR code) sur un serveur interne de l'entreprise. Elle fonctionne aujourd'hui sur Vercel avec une base Supabase, hors du réseau. Voici ce dont l'installation a besoin :
 
 1. Un serveur Windows (Windows Server ou PC de l'atelier) allumé en permanence, avec un nom ou une adresse IP fixe.
 2. Node.js 22.18+ LTS (ou 24 LTS) — environ 500 Mo de RAM et 2 Go de disque.

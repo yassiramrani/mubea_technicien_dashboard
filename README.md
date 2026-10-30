@@ -1,6 +1,9 @@
-# Mubea Maintenance Inventory
+# Mubea Workshop Tool Tracking
 
-Tools inventory dashboard built with Next.js, TypeScript, and Prisma.
+Workshop tool tracking dashboard built with Next.js, TypeScript, and Prisma.
+
+It follows shared workshop tooling only — which tool exists, who has it and since when. PM orders
+and spare parts management stay in the Mubea Maintenance application.
 
 The project is organized as a web application with QR-code tooling and a Vercel-ready deployment setup.
 

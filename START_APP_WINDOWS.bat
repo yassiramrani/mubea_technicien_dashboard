@@ -1,9 +1,9 @@
 @echo off
-title Mubea Maintaining Inventory
+title Mubea Workshop Tool Tracking
 setlocal
 
 echo =========================================
-echo   Mubea Maintaining Inventory
+echo   Mubea Workshop Tool Tracking
 echo =========================================
 echo.
 
