@@ -1,3 +1,5 @@
+Latest local completion: [liveness, database readiness and operating requirements](OPERATIONS.md). The new source changes have not been verified in production.
+
 # Mubea Workshop Tool Tracking
 
 Workshop tool tracking dashboard built with Next.js, TypeScript, and Prisma.

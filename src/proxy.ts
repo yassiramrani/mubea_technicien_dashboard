@@ -20,6 +20,7 @@ import { SESSION_COOKIE, readSession } from '@/lib/session';
 const PUBLIC_PREFIXES = ['/signin', '/api/auth'];
 
 function isPublic(pathname: string): boolean {
+  if (pathname === '/api/health/live' || pathname === '/api/health/ready') return true;
   return PUBLIC_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
