@@ -1,3 +1,5 @@
+Platform assessment: Anna's SAP/Bluebird feedback concerns this technician dashboard. The local implementation was rejected; assess SAP requirements coverage and the Bluebird alternative before further rollout. See the [process and platform assessment](docs/PLATFORM_ASSESSMENT.md). Existing deployment guides remain reference material pending the decision.
+
 Latest local completion: [liveness, database readiness and operating requirements](OPERATIONS.md). The new source changes have not been verified in production.
 
 # Mubea Workshop Tool Tracking

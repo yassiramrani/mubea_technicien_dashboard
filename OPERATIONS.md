@@ -1,5 +1,7 @@
 # Workshop Tool Tracking operations — 16 November 2026
 
+Scope correction: Anna's SAP/Bluebird feedback concerns this technician dashboard. The local implementation was rejected; PM, Production and IT must assess the supported solution before further rollout. See [the platform assessment](docs/PLATFORM_ASSESSMENT.md). The technical checks below describe existing source verification and do not resolve that decision.
+
 `GET /api/health/live` returns 200 with `{"status":"ok"}` when the Next.js process responds. `GET /api/health/ready` returns 200 only when session signing is configured and a read-only `SELECT 1` succeeds; otherwise it returns 503 with `{"status":"unavailable"}`. Responses use `Cache-Control: no-store` and reveal no records, credentials or error details. Only these exact health paths bypass sign-in. Other API routes keep their existing access checks.
 
 Readiness waits at most five seconds and coalesces probes for five seconds per server instance. A timeout does not cancel an underlying database query; retain appropriate database connection/query timeouts in the operating environment. Monitor liveness and readiness separately; repeated readiness failures should alert the operating owner, not trigger automatic data resets.
